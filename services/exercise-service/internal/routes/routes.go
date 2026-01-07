@@ -24,19 +24,24 @@ func SetupRoutes(router *gin.Engine, handler *handlers.ExerciseHandler, storageH
 			}
 		}
 
-		// Public routes (optional auth)
+		// Exercise routes - single group with per-route middleware
 		exercises := api.Group("/exercises")
-		exercises.Use(authMiddleware.OptionalAuth())
 		{
-			exercises.GET("", handler.GetExercises)        // List exercises with filters
-			exercises.GET("/:id", handler.GetExerciseByID) // Get exercise detail
-			// Start exercise by exercise ID (proxied by API Gateway at /api/v1/exercises/:id/start)
-			exercises.POST("/:id/start", handler.StartExercise)
+			// Public routes (optional auth)
+			exercises.GET("", authMiddleware.OptionalAuth(), handler.GetExercises)        // List exercises
+			exercises.GET("/:id", authMiddleware.OptionalAuth(), handler.GetExerciseByID) // Get detail
+
+			// Protected route - start exercise (student/instructor only)
+			exercises.POST("/:id/start",
+				authMiddleware.AuthRequired(),
+				authMiddleware.RequireRole("student", "instructor"),
+				handler.StartExercise) // Start exercise
 		}
 
-		// Student routes (auth required)
+		// Student routes (auth required, student and instructor only - admin cannot submit)
 		submissions := api.Group("/submissions")
 		submissions.Use(authMiddleware.AuthRequired())
+		submissions.Use(authMiddleware.RequireRole("student", "instructor"))
 		{
 			submissions.POST("", handler.StartExercise)                 // Start new exercise
 			submissions.POST("/:id/submit", handler.SubmitExercise)     // Unified submission (Phase 4)

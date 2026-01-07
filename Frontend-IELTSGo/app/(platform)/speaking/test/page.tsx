@@ -26,10 +26,13 @@ export default function SpeakingExercisePage() {
   const userId = 'a75d491e-3d65-4437-baeb-21b6e7e2dee3'; // bi@gmail.com
   const token = 'your-jwt-token'; // Get from auth context
 
-  /**
-   * Step 1: Start exercise and get submission ID
-   */
+  // TODO: Add proper auth context and admin check
+  // Prevent admins from starting exercises
   const handleStartExercise = async () => {
+    if (user?.role === 'admin') {
+      alert('Admins cannot start exercises. Use a student or instructor account.')
+      return
+    }
     try {
       const response = await fetch('/api/v1/exercises/dd3abb5b-e1ae-482e-b798-1ee686ce7ecd/start', {
         method: 'POST',

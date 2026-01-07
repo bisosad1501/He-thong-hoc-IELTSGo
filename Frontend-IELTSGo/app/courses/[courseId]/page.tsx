@@ -291,6 +291,12 @@ export default function CourseDetailPage() {
                         {tCourses('content_being_updated')}
                       </Button>
                     )
+                  ) : user?.role === "admin" ? (
+                    <div className="w-full mb-4 p-4 border-2 border-muted rounded-lg bg-muted/50">
+                      <p className="text-sm text-center text-muted-foreground">
+                        {tCourses('admin_cannot_enroll') || 'Admins cannot enroll in courses. Use a student account to test enrollment.'}
+                      </p>
+                    </div>
                   ) : ((course.enrollment_type || course.enrollmentType) === "premium" || 
                        (course.enrollment_type || course.enrollmentType) === "paid") ? (
                     <Button className="w-full mb-4" size="lg" onClick={handleEnroll} disabled={true}>

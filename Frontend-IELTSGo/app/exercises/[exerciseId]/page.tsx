@@ -65,6 +65,12 @@ export default function ExerciseDetailPage() {
       return
     }
 
+    // Prevent admins from starting exercises
+    if (user.role === 'admin') {
+      toast.error(t('admin_cannot_start_exercise') || 'Admins cannot start exercises. Use a student or instructor account.')
+      return
+    }
+
     try {
       setStarting(true)
 

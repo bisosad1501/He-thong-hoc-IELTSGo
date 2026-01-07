@@ -59,21 +59,22 @@ type CourseListQuery struct {
 	SkillType      string `form:"skill_type"`      // listening, reading, writing, speaking, general
 	Level          string `form:"level"`           // beginner, intermediate, advanced
 	EnrollmentType string `form:"enrollment_type"` // free, premium
+	Status         string `form:"status"`          // draft, published, archived
 	IsFeatured     *bool  `form:"is_featured"`
 	Search         string `form:"search"` // Search in title, description, instructor_name
 	Page           int    `form:"page"`
 	Limit          int    `form:"limit"`
-	SortBy         string `form:"sort_by"`       // newest, popular, title, rating
-	SortOrder      string `form:"sort_order"`    // asc, desc
+	SortBy         string `form:"sort_by"`    // newest, popular, title, rating
+	SortOrder      string `form:"sort_order"` // asc, desc
 }
 
 // CourseDetailResponse represents detailed course with modules and lessons
 type CourseDetailResponse struct {
-	Course                Course              `json:"course"`
-	Modules               []ModuleWithLessons `json:"modules"`
-	CourseLevelExercises  []ExerciseSummary   `json:"course_level_exercises,omitempty"` // NEW: Course-level exercises (not tied to specific module)
-	IsEnrolled            bool                `json:"is_enrolled"`
-	EnrollmentDetails     *CourseEnrollment   `json:"enrollment_details,omitempty"`
+	Course               Course              `json:"course"`
+	Modules              []ModuleWithLessons `json:"modules"`
+	CourseLevelExercises []ExerciseSummary   `json:"course_level_exercises,omitempty"` // NEW: Course-level exercises (not tied to specific module)
+	IsEnrolled           bool                `json:"is_enrolled"`
+	EnrollmentDetails    *CourseEnrollment   `json:"enrollment_details,omitempty"`
 }
 
 // ModuleWithLessons represents a module with its lessons and exercises

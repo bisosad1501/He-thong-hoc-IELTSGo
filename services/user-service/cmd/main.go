@@ -42,9 +42,10 @@ func main() {
 	userHandler := handlers.NewUserHandler(userService)
 	internalHandler := handlers.NewInternalHandler(userService)
 	scoringHandler := handlers.NewScoringHandler(userService)
+	adminStatsHandler := handlers.NewAdminStatsHandler(db.DB) // Pass underlying *sql.DB
 
 	// Setup routes
-	router := routes.SetupRoutes(userHandler, internalHandler, scoringHandler, authMiddleware)
+	router := routes.SetupRoutes(userHandler, internalHandler, scoringHandler, adminStatsHandler, authMiddleware)
 
 	// Start server
 	port := ":" + cfg.ServerPort

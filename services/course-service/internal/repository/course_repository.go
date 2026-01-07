@@ -35,8 +35,17 @@ func (r *CourseRepository) GetCourses(query *models.CourseListQuery) ([]models.C
 			   c.total_enrollments, c.average_rating, c.total_reviews, c.display_order,
 			   c.published_at, c.created_at, c.updated_at
 		FROM courses c
-		WHERE c.status = 'published'
+		WHERE 1=1
 	`
+
+	// Filter by status - default to 'published' for public API
+	if query.Status != "" {
+		args = append(args, query.Status)
+		conditions = append(conditions, fmt.Sprintf("c.status = $%d", len(args)))
+	} else {
+		// Default: only show published courses for public access
+		conditions = append(conditions, "c.status = 'published'")
+	}
 
 	// Parse comma-separated values for OR logic within same category
 	if query.SkillType != "" {
@@ -101,7 +110,7 @@ func (r *CourseRepository) GetCourses(query *models.CourseListQuery) ([]models.C
 	}
 
 	// Get total count first (before pagination)
-	countQuery := "SELECT COUNT(*) FROM courses c WHERE c.status = 'published'"
+	countQuery := "SELECT COUNT(*) FROM courses c WHERE 1=1"
 	if len(conditions) > 0 {
 		countQuery += " AND " + strings.Join(conditions, " AND ")
 	}
@@ -118,7 +127,7 @@ func (r *CourseRepository) GetCourses(query *models.CourseListQuery) ([]models.C
 		if query.SortOrder == "asc" {
 			sortOrder = "ASC"
 		}
-		
+
 		switch query.SortBy {
 		case "newest":
 			orderBy = fmt.Sprintf("c.created_at %s", sortOrder)
@@ -876,13 +885,13 @@ func (r *CourseRepository) GetCourseReviews(courseID uuid.UUID, page, limit int)
 	var reviews []models.CourseReview
 	for rows.Next() {
 		var review models.CourseReview
-        err := rows.Scan(
-            &review.ID, &review.UserID, &review.CourseID, &review.Rating,
-            &review.Title, &review.Comment, &review.HelpfulCount,
-            &review.IsApproved, &review.ApprovedBy, &review.ApprovedAt,
-            &review.CreatedAt, &review.UpdatedAt,
-            &review.UserName, &review.UserEmail, &review.UserAvatarURL,
-        )
+		err := rows.Scan(
+			&review.ID, &review.UserID, &review.CourseID, &review.Rating,
+			&review.Title, &review.Comment, &review.HelpfulCount,
+			&review.IsApproved, &review.ApprovedBy, &review.ApprovedAt,
+			&review.CreatedAt, &review.UpdatedAt,
+			&review.UserName, &review.UserEmail, &review.UserAvatarURL,
+		)
 		if err != nil {
 			log.Printf("Error scanning review: %v", err)
 			continue
@@ -970,7 +979,7 @@ func (r *CourseRepository) UpdateReview(userID, courseID uuid.UUID, req *models.
 
 	// Always update updated_at
 	updates = append(updates, fmt.Sprintf("updated_at = CURRENT_TIMESTAMP"))
-	
+
 	// Build WHERE clause separately
 	whereClause := fmt.Sprintf("user_id = $%d AND course_id = $%d", argCount, argCount+1)
 	args = append(args, userID, courseID)

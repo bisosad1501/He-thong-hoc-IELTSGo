@@ -1,4 +1,5 @@
 import { apiClient } from "./apiClient"
+import { instructorApi } from "./instructor"
 import type {
   DashboardStats,
   Activity,
@@ -114,16 +115,45 @@ export const adminApi = {
     page?: number
     limit?: number
     status?: "draft" | "published" | "archived"
-    instructorId?: string
-  }): Promise<PaginatedResponse<Course>> {
-    const queryParams = new URLSearchParams()
-    if (params.page) queryParams.append("page", params.page.toString())
-    if (params.limit) queryParams.append("limit", params.limit.toString())
-    if (params.status) queryParams.append("status", params.status)
-    if (params.instructorId) queryParams.append("instructorId", params.instructorId)
+    skill_type?: string
+    level?: string
+    enrollment_type?: string
+    search?: string
+  }) {
+    return instructorApi.getCourses(params)
+  },
 
-    const response = await apiClient.get<PaginatedResponse<Course>>(`/admin/content/courses?${queryParams.toString()}`)
-    return response.data
+  async getContentReviewQueue(status: string) {
+    // Map status to course status
+    const statusMap: Record<string, string> = {
+      'pending': 'draft',
+      'approved': 'published',
+      'rejected': 'archived',
+      'draft': 'draft',
+      'published': 'published',
+      'archived': 'archived'
+    }
+    return this.getCourses({ status: statusMap[status] as any, limit: 50 })
+  },
+
+  async reviewContent(id: string, status: "approved" | "rejected") {
+    if (status === "approved") {
+      return instructorApi.publishCourse(id)
+    } else {
+      return instructorApi.archiveCourse(id)
+    }
+  },
+
+  async createCourse(data: any) {
+    return instructorApi.createCourse(data)
+  },
+
+  async updateCourse(id: string, data: any) {
+    return instructorApi.updateCourse(id, data)
+  },
+
+  async deleteCourse(id: string) {
+    return instructorApi.deleteCourse(id)
   },
 
   async getExercises(params: {

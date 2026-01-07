@@ -251,23 +251,23 @@ func SetupRoutes(r *gin.Engine, cfg *config.Config, authMiddleware *middleware.A
 	}
 
 	// ============================================
-		// STORAGE SERVICE
-		// ============================================
-		storageGroup := v1.Group("/storage")
+	// STORAGE SERVICE
+	// ============================================
+	storageGroup := v1.Group("/storage")
+	{
+		audio := storageGroup.Group("/audio")
 		{
-			audio := storageGroup.Group("/audio")
-			{
-				// Protected routes (require auth)
-				audio.POST("/upload", authMiddleware.ValidateToken(), proxy.ReverseProxy(cfg.Services.ExerciseService))              // Upload audio (proxy to Storage Service)
-				audio.GET("/info/*object_name", authMiddleware.ValidateToken(), proxy.ReverseProxy(cfg.Services.ExerciseService))    // Get audio info
-				audio.GET("/presigned-url/*object_name", authMiddleware.ValidateToken(), proxy.ReverseProxy(cfg.Services.StorageService)) // Get presigned URL (direct to Storage Service)
-				
-				// Public route (no auth required) - for HTML5 audio player
-				// NOTE: This is safe because audio files are already protected during upload
-				// Only users who own the submission can get the audio URL
-				audio.GET("/file/*object_name", proxy.ReverseProxy(cfg.Services.StorageService))
-			}
+			// Protected routes (require auth)
+			audio.POST("/upload", authMiddleware.ValidateToken(), proxy.ReverseProxy(cfg.Services.ExerciseService))                   // Upload audio (proxy to Storage Service)
+			audio.GET("/info/*object_name", authMiddleware.ValidateToken(), proxy.ReverseProxy(cfg.Services.ExerciseService))         // Get audio info
+			audio.GET("/presigned-url/*object_name", authMiddleware.ValidateToken(), proxy.ReverseProxy(cfg.Services.StorageService)) // Get presigned URL (direct to Storage Service)
+
+			// Public route (no auth required) - for HTML5 audio player
+			// NOTE: This is safe because audio files are already protected during upload
+			// Only users who own the submission can get the audio URL
+			audio.GET("/file/*object_name", proxy.ReverseProxy(cfg.Services.StorageService))
 		}
+	}
 
 	// ============================================
 	// NOTIFICATION SERVICE - All protected
@@ -356,6 +356,12 @@ func SetupRoutes(r *gin.Engine, cfg *config.Config, authMiddleware *middleware.A
 		// Notification management
 		adminGroup.POST("/notifications", proxy.ReverseProxy(cfg.Services.NotificationService))
 		adminGroup.POST("/notifications/bulk", proxy.ReverseProxy(cfg.Services.NotificationService))
+
+		// Admin statistics (user-service)
+		adminGroup.GET("/stats/dashboard", proxy.ReverseProxy(cfg.Services.UserService))
+		adminGroup.GET("/stats/user-growth", proxy.ReverseProxy(cfg.Services.UserService))
+		adminGroup.GET("/stats/enrollments", proxy.ReverseProxy(cfg.Services.UserService))
+		adminGroup.GET("/stats/activities", proxy.ReverseProxy(cfg.Services.UserService))
 	}
 
 	// ============================================

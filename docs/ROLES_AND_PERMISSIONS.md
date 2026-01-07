@@ -261,18 +261,38 @@ DELETE /api/v1/admin/question-bank/:id              - Delete bank question
 
 ### Permissions
 ```sql
-Tất cả 10 permissions:
+CHỈ 6 permissions (NO student permissions - strict role separation):
 
-1-7. Kế thừa tất cả permissions của Instructor (7)
-8. manage_users      (users, manage)     - Quản lý người dùng
-9. manage_system     (system, manage)    - Quản lý hệ thống
-10. view_analytics   (analytics, read)   - Xem thống kê toàn hệ thống
+5. manage_courses      (courses, manage)     - Quản lý khóa học
+6. manage_exercises    (exercises, manage)   - Quản lý bài tập
+7. view_student_progress (progress, read)    - Xem tiến độ học viên
+8. manage_users        (users, manage)       - Quản lý người dùng
+9. manage_system       (system, manage)      - Quản lý hệ thống
+10. view_analytics     (analytics, read)     - Xem thống kê toàn hệ thống
+
+⚠️ QUAN TRỌNG: Admin KHÔNG có permissions 1-4 (student permissions)
+   - KHÔNG thể view_courses như student
+   - KHÔNG thể enroll_course
+   - KHÔNG thể submit_exercise
+   - KHÔNG thể view_own_progress
+   
+✅ Admin có thể manage courses/exercises nhưng KHÔNG thể làm bài như student
+✅ Phân tách rõ ràng: Admin quản lý, Student học tập
 ```
 
 ### Có thể làm gì?
 
-#### ✅ Tất cả quyền của Instructor
-- Tất cả features của Student + Instructor
+#### ✅ Quyền Instructor (Course/Exercise Management)
+- Tất cả quyền của Instructor (tạo, sửa courses & exercises)
+- Xem progress của students
+
+#### ❌ KHÔNG có quyền Student
+- ❌ **KHÔNG thể enroll courses**
+- ❌ **KHÔNG thể làm bài exercises**
+- ❌ **KHÔNG thể submit answers**
+- ❌ **KHÔNG thể track video progress**
+- ❌ **KHÔNG thể review courses**
+- 💡 Để test: Tạo student account riêng
 
 #### ✅ Quản lý Users (Admin Only)
 - Xem danh sách tất cả users

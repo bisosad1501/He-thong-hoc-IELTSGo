@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Users, BookOpen, PenTool, TrendingUp, TrendingDown, Bell, Activity as ActivityIcon, FileText } from "lucide-react"
-import { adminApi } from "@/lib/api/admin"
-import type { DashboardStats, Activity as ActivityType } from "@/types/admin"
+import { adminStatsApi } from "@/lib/api/admin-stats"
+import type { DashboardStats, UserGrowthData, EnrollmentData, Activity } from "@/lib/api/admin-stats"
 import {
   LineChart,
   Line,
@@ -28,10 +28,11 @@ export default function AdminDashboard() {
   const t = useTranslations('common')
 
   const [stats, setStats] = useState<DashboardStats | null>(null)
-  const [userGrowthData, setUserGrowthData] = useState<{ date: string; count: number }[]>([])
-  const [enrollmentData, setEnrollmentData] = useState<{ date: string; enrollments: number; completions: number }[]>([])
-  const [activities, setActivities] = useState<ActivityType[]>([])
+  const [userGrowthData, setUserGrowthData] = useState<UserGrowthData[]>([])
+  const [enrollmentData, setEnrollmentData] = useState<EnrollmentData[]>([])
+  const [activities, setActivities] = useState<Activity[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     loadDashboardData()
@@ -45,87 +46,29 @@ export default function AdminDashboard() {
   const loadDashboardData = async () => {
     try {
       setLoading(true)
+      setError(null)
       
-      // TODO: Uncomment when backend admin API is implemented
-      // const [statsData, growthData, enrollData, activitiesData] = await Promise.all([
-      //   adminApi.getDashboardStats(),
-      //   adminApi.getUserGrowthData(30),
-      //   adminApi.getEnrollmentData(7),
-      //   adminApi.getRecentActivities(20),
-      // ])
-      // setStats(statsData)
-      // setUserGrowthData(growthData)
-      // setEnrollmentData(enrollData)
-      // setActivities(activitiesData)
+      console.log('[Admin Dashboard] Loading data...')
       
-      // Using mock data until backend is ready
-      setStats({
-        totalUsers: 1247,
-        totalStudents: 892,
-        totalInstructors: 23,
-        totalAdmins: 5,
-        userGrowth: 12.5,
-        totalCourses: 45,
-        activeCourses: 38,
-        draftCourses: 7,
-        totalExercises: 234,
-        submissionsToday: 87,
-        averageCompletionRate: 78.5,
-        systemHealth: "healthy",
-        cpuUsage: 45,
-        memoryUsage: 62,
-      })
-      
-      setUserGrowthData(
-        Array.from({ length: 30 }, (_, i) => ({
-          date: new Date(Date.now() - (29 - i) * 24 * 60 * 60 * 1000).toISOString(),
-          count: Math.floor(Math.random() * 50) + 20,
-        }))
-      )
-      
-      setEnrollmentData(
-        Array.from({ length: 7 }, (_, i) => ({
-          date: new Date(Date.now() - (6 - i) * 24 * 60 * 60 * 1000).toISOString(),
-          enrollments: Math.floor(Math.random() * 20) + 10,
-          completions: Math.floor(Math.random() * 10) + 5,
-        }))
-      )
-      
-      setActivities([
-        {
-          id: "1",
-          type: "user",
-          action: "registered",
-          actorName: "John Doe",
-          actorAvatar: "/placeholder-user.jpg",
-          timestamp: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
-        },
-        {
-          id: "2",
-          type: "course",
-          action: "completed IELTS Writing Masterclass",
-          actorName: "Jane Smith",
-          actorAvatar: "/placeholder-user.jpg",
-          timestamp: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-        },
-        {
-          id: "3",
-          type: "exercise",
-          action: "submitted IELTS Reading Practice Test 5",
-          actorName: "Mike Johnson",
-          timestamp: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-        },
-        {
-          id: "4",
-          type: "review",
-          action: "reviewed Writing Task 2 submission",
-          actorName: "Sarah Williams",
-          actorAvatar: "/placeholder-user.jpg",
-          timestamp: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
-        },
+      const [statsData, growthData, enrollData, activitiesData] = await Promise.all([
+        adminStatsApi.getDashboardStats(),
+        adminStatsApi.getUserGrowthData(30),
+        adminStatsApi.getEnrollmentData(7),
+        adminStatsApi.getRecentActivities(20),
       ])
+      
+      console.log('[Admin Dashboard] Stats:', statsData)
+      console.log('[Admin Dashboard] Growth data:', growthData)
+      console.log('[Admin Dashboard] Enrollment data:', enrollData)
+      console.log('[Admin Dashboard] Activities:', activitiesData)
+      
+      setStats(statsData)
+      setUserGrowthData(growthData)
+      setEnrollmentData(enrollData)
+      setActivities(activitiesData)
     } catch (error) {
-      console.error("Failed to load dashboard data:", error)
+      console.error("[Admin Dashboard] Failed to load dashboard data:", error)
+      setError("Failed to load dashboard data. Please try again.")
     } finally {
       setLoading(false)
     }
@@ -133,11 +76,8 @@ export default function AdminDashboard() {
 
   const loadActivities = async () => {
     try {
-      // TODO: Uncomment when backend admin API is implemented
-      // const activitiesData = await adminApi.getRecentActivities(20)
-      // setActivities(activitiesData)
-      
-      // Mock data - no need to refresh
+      const activitiesData = await adminStatsApi.getRecentActivities(20)
+      setActivities(activitiesData)
     } catch (error) {
       console.error("Failed to load activities:", error)
     }
@@ -149,10 +89,31 @@ export default function AdminDashboard() {
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           {[1, 2, 3, 4].map((i) => (
             <Card key={i} className="animate-pulse">
-              <CardHeader className="h-32 bg-gray-200 rounded-lg"></CardHeader>
+              <CardHeader className="pb-2">
+                <div className="h-4 w-24 bg-gray-200 rounded" />
+              </CardHeader>
+              <CardContent>
+                <div className="h-8 w-16 bg-gray-200 rounded" />
+              </CardContent>
             </Card>
           ))}
         </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle className="text-red-500">Error</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground mb-4">{error}</p>
+            <Button onClick={loadDashboardData}>Retry</Button>
+          </CardContent>
+        </Card>
       </div>
     )
   }
@@ -173,17 +134,17 @@ export default function AdminDashboard() {
               <Users className="w-4 h-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.totalUsers.toLocaleString()}</div>
+              <div className="text-2xl font-bold">{stats.total_users.toLocaleString()}</div>
               <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                {stats.userGrowth >= 0 ? (
+                {stats.user_growth >= 0 ? (
                   <>
                     <TrendingUp className="w-3 h-3 text-green-500" />
-                    <span className="text-green-500">+{stats.userGrowth}%</span>
+                    <span className="text-green-500">+{stats.user_growth}%</span>
                   </>
                 ) : (
                   <>
                     <TrendingDown className="w-3 h-3 text-red-500" />
-                    <span className="text-red-500">{stats.userGrowth}%</span>
+                    <span className="text-red-500">{stats.user_growth}%</span>
                   </>
                 )}
                 {" "}{t('from_last_month')}
@@ -198,9 +159,9 @@ export default function AdminDashboard() {
               <BookOpen className="w-4 h-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.totalCourses.toLocaleString()}</div>
+              <div className="text-2xl font-bold">{stats.total_courses.toLocaleString()}</div>
               <p className="text-xs text-muted-foreground mt-1">
-                {stats.activeCourses} {t('active')}, {stats.draftCourses} {t('draft')}
+                {stats.active_courses} {t('active')}, {stats.draft_courses} {t('draft')}
               </p>
             </CardContent>
           </Card>
@@ -212,9 +173,9 @@ export default function AdminDashboard() {
               <PenTool className="w-4 h-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.totalExercises.toLocaleString()}</div>
+              <div className="text-2xl font-bold">{stats.total_exercises.toLocaleString()}</div>
               <p className="text-xs text-muted-foreground mt-1">
-                {stats.submissionsToday} {t('submissions_today')}
+                {stats.submissions_today} {t('submissions_today')}
               </p>
             </CardContent>
           </Card>
@@ -226,9 +187,9 @@ export default function AdminDashboard() {
               <ActivityIcon className="w-4 h-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.totalStudents.toLocaleString()}</div>
+              <div className="text-2xl font-bold">{stats.total_students.toLocaleString()}</div>
               <p className="text-xs text-muted-foreground mt-1">
-                {stats.totalInstructors} {t('instructors')}
+                {stats.total_instructors} {t('instructors')}
               </p>
             </CardContent>
           </Card>
@@ -302,14 +263,14 @@ export default function AdminDashboard() {
                   activities.map((activity) => (
                     <div key={activity.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors">
                       <Avatar className="h-10 w-10">
-                        <AvatarImage src={activity.actorAvatar || "/placeholder.svg"} />
+                        <AvatarImage src={activity.actor_avatar || "/placeholder.svg"} />
                         <AvatarFallback>
-                          {activity.actorName?.charAt(0) || "?"}
+                          {activity.actor_name?.charAt(0) || "?"}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm">
-                          <span className="font-medium">{activity.actorName || t('unknown')}</span>{" "}
+                          <span className="font-medium">{activity.actor_name || t('unknown')}</span>{" "}
                           <span className="text-muted-foreground">{activity.action || t('performed_an_action')}</span>
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">

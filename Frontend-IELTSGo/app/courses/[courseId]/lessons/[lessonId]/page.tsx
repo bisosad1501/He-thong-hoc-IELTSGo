@@ -26,6 +26,7 @@ import {
   Target,
   Loader2,
   Layers,
+  BookOpen,
 } from "lucide-react"
 import { PageLoading } from "@/components/ui/page-loading"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -35,12 +36,15 @@ import type { Lesson, Module } from "@/types"
 import { formatDuration } from "@/lib/utils/format"
 import { useYouTubeProgress } from "@/lib/hooks/use-youtube-progress"
 import { usePreferences } from "@/lib/contexts/preferences-context"
+import { useAuth } from "@/lib/contexts/auth-context"
 import { useTranslations } from '@/lib/i18n'
 import { useLessonSwipeNavigation } from "@/lib/hooks/use-swipe-gestures"
 
 export default function LessonPlayerPage() {
 
   const t = useTranslations('courses')
+  const tCommon = useTranslations('common')
+  const { user } = useAuth()
 
   const params = useParams()
   const router = useRouter()
@@ -214,15 +218,31 @@ export default function LessonPlayerPage() {
         setProgressLoaded(true)
 
         // Get course detail with modules and lessons (including videos)
+        console.log('[Lesson Player] Fetching course with ID:', params.courseId)
+        
+        // Clear cache for debugging (temporary)
+        if (typeof window !== 'undefined') {
+          sessionStorage.removeItem(`api_cache_/courses/${params.courseId}`)
+        }
+        
         const courseDetail = await coursesApi.getCourseById(params.courseId as string)
+        console.log('[Lesson Player] Course Detail Response:', courseDetail)
+        console.log('[Lesson Player] Course modules:', courseDetail?.modules)
+        console.log('[Lesson Player] Modules is array?', Array.isArray(courseDetail?.modules))
+        console.log('[Lesson Player] Modules length:', courseDetail?.modules?.length)
 
-        // Auto-enroll if not enrolled and user is authenticated
+        // Auto-enroll if not enrolled and user is authenticated (but not admin)
         const token = getToken()
+        const userData = user
         if (token && courseDetail && courseDetail.is_enrolled === false) {
-          try {
-            await coursesApi.enrollCourse(params.courseId as string)
-          } catch (enErr) {
-            // Silent fail - user can enroll manually
+          // Only auto-enroll for students and instructors, NOT admins
+          if (userData?.role === 'student' || userData?.role === 'instructor') {
+            try {
+              await coursesApi.enrollCourse(params.courseId as string)
+            } catch (enErr) {
+              // Silent fail - user can enroll manually
+              console.log('[Lesson Player] Auto-enroll failed:', enErr)
+            }
           }
         }
         
@@ -247,7 +267,7 @@ export default function LessonPlayerPage() {
         console.log('[Lesson Player] Course-level exercises:', courseDetail.course_level_exercises)
         setCourseLevelExercises(courseDetail.course_level_exercises || [])
         
-        const transformedModules: Module[] = courseDetail.modules.map((moduleData: any, index: number) => {
+        const transformedModules: Module[] = (courseDetail.modules || []).map((moduleData: any, index: number) => {
           console.log(`[Lesson Player] Module ${index + 1}:`, moduleData.module.title)
           console.log(`[Lesson Player] Module ${index + 1} exercises:`, moduleData.exercises)
           console.log(`[Lesson Player] Module ${index + 1} exercises count:`, moduleData.exercises?.length || 0)
@@ -735,17 +755,24 @@ export default function LessonPlayerPage() {
               </CardHeader>
               <CardContent className="p-0">
                 <div className="max-h-[calc(100vh-200px)] overflow-y-auto">
-                  {modules.map((module) => (
-                    <div key={module.id} className="border-b last:border-b-0">
-                      <div className="p-4 bg-muted/50">
-                        <h4 className="font-semibold text-sm">{module.title}</h4>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {module.lessons?.length || 0} {t('lesson_plural')}
-                          {(module.exercises?.length || 0) > 0 && (
-                            <span className="text-pink-600 dark:text-pink-400"> • {module.exercises?.length || 0} {t('exercise_plural')}</span>
-                          )}
-                        </p>
-                      </div>
+                  {modules.length === 0 ? (
+                    <div className="p-6 text-center text-muted-foreground">
+                      <BookOpen className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                      <p className="text-sm font-medium mb-1">{t('no_modules_yet') || 'No modules yet'}</p>
+                      <p className="text-xs">{t('content_being_prepared') || 'Content is being prepared'}</p>
+                    </div>
+                  ) : (
+                    modules.map((module) => (
+                      <div key={module.id} className="border-b last:border-b-0">
+                        <div className="p-4 bg-muted/50">
+                          <h4 className="font-semibold text-sm">{module.title}</h4>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {module.lessons?.length || 0} {t('lesson_plural')}
+                            {(module.exercises?.length || 0) > 0 && (
+                              <span className="text-pink-600 dark:text-pink-400"> • {module.exercises?.length || 0} {t('exercise_plural')}</span>
+                            )}
+                          </p>
+                        </div>
                       <div className="divide-y">
                         {/* Lessons */}
                         {module.lessons?.map((l, index) => {
@@ -878,7 +905,7 @@ export default function LessonPlayerPage() {
                         })}
                       </div>
                     </div>
-                  ))}
+                  )))}
                   
                   {/* Course-Level Exercises Section - NEW */}
                   {courseLevelExercises && courseLevelExercises.length > 0 && (

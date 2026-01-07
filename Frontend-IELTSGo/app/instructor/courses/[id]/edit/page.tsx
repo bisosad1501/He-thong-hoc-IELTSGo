@@ -66,9 +66,26 @@ export default function CourseBuilderPage() {
     try {
       setLoading(true)
       if (params.id === "create") {
-        await instructorApi.createCourse(course)
+        const slug = course.title?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || ''
+        const courseData = {
+          title: course.title || '',
+          slug: slug,
+          description: course.description,
+          short_description: course.description ? course.description.substring(0, 200) : undefined,
+          skill_type: course.category || 'general',
+          level: course.level || 'beginner',
+          enrollment_type: 'free',
+          price: 0,
+          currency: 'VND',
+        }
+        await instructorApi.createCourse(courseData)
       } else {
-        await instructorApi.updateCourse(params.id as string, course)
+        const updateData: any = {}
+        if (course.title) updateData.title = course.title
+        if (course.description) updateData.description = course.description
+        if (course.description) updateData.short_description = course.description.substring(0, 200)
+        
+        await instructorApi.updateCourse(params.id as string, updateData)
       }
       router.push("/instructor/courses")
     } catch (error) {

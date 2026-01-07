@@ -6,7 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func SetupRoutes(handler *handlers.UserHandler, internalHandler *handlers.InternalHandler, scoringHandler *handlers.ScoringHandler, authMiddleware *middleware.AuthMiddleware) *gin.Engine {
+func SetupRoutes(handler *handlers.UserHandler, internalHandler *handlers.InternalHandler, scoringHandler *handlers.ScoringHandler, adminStatsHandler *handlers.AdminStatsHandler, authMiddleware *middleware.AuthMiddleware) *gin.Engine {
 	router := gin.Default()
 
 	// Health check
@@ -107,6 +107,17 @@ func SetupRoutes(handler *handlers.UserHandler, internalHandler *handlers.Intern
 			internal.POST("/users/:user_id/practice-activities", scoringHandler.RecordPracticeActivityInternal)
 			internal.GET("/users/:user_id/test-history", scoringHandler.GetUserTestHistory)
 			internal.GET("/users/:user_id/practice-statistics", scoringHandler.GetUserPracticeStatistics)
+		}
+
+		// Admin statistics routes (admin only)
+		adminStats := v1.Group("/admin/stats")
+		adminStats.Use(authMiddleware.AuthRequired())
+		adminStats.Use(authMiddleware.RequireRole("admin"))
+		{
+			adminStats.GET("/dashboard", adminStatsHandler.GetDashboardStats)    // Get overall dashboard stats
+			adminStats.GET("/user-growth", adminStatsHandler.GetUserGrowthData)  // Get user growth data
+			adminStats.GET("/enrollments", adminStatsHandler.GetEnrollmentData)  // Get enrollment stats
+			adminStats.GET("/activities", adminStatsHandler.GetRecentActivities) // Get recent activities
 		}
 	}
 

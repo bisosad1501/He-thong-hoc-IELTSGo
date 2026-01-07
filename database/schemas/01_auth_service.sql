@@ -303,9 +303,11 @@ INSERT INTO role_permissions (role_id, permission_id) VALUES
 INSERT INTO role_permissions (role_id, permission_id) VALUES
     (2, 1), (2, 2), (2, 3), (2, 4), (2, 5), (2, 6), (2, 7);
 
--- Admin role permissions (all permissions)
+-- Admin role permissions (5-10: instructor + admin-only permissions, NO student-only permissions)
+-- Admins do NOT have permissions 1-4 to prevent them from acting as students
+-- This enforces proper role separation: admins manage, students learn
 INSERT INTO role_permissions (role_id, permission_id) VALUES
-    (3, 1), (3, 2), (3, 3), (3, 4), (3, 5), (3, 6), (3, 7), (3, 8), (3, 9), (3, 10);
+    (3, 5), (3, 6), (3, 7), (3, 8), (3, 9), (3, 10);
 
 -- ============================================================================
 -- SCHEMA MIGRATIONS TRACKING

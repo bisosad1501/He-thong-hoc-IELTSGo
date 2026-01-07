@@ -131,8 +131,10 @@ func (m *AuthMiddleware) OptionalAuth() gin.HandlerFunc {
 // RequireRole checks if user has specific role
 func (m *AuthMiddleware) RequireRole(allowedRoles ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		fmt.Printf("[RequireRole] Middleware called for path: %s\n", c.Request.URL.Path)
 		role, exists := c.Get("role")
 		if !exists {
+			fmt.Printf("[RequireRole] Role not found in context\n")
 			c.JSON(http.StatusForbidden, Response{
 				Success: false,
 				Error: &ErrorInfo{
@@ -145,13 +147,16 @@ func (m *AuthMiddleware) RequireRole(allowedRoles ...string) gin.HandlerFunc {
 		}
 
 		roleStr := role.(string)
+		fmt.Printf("[RequireRole] User role: %s, allowed: %v\n", roleStr, allowedRoles)
 		for _, allowedRole := range allowedRoles {
 			if roleStr == allowedRole {
+				fmt.Printf("[RequireRole] Role matched, allowing request\n")
 				c.Next()
 				return
 			}
 		}
 
+		fmt.Printf("[RequireRole] Role not allowed, rejecting with 403\n")
 		c.JSON(http.StatusForbidden, Response{
 			Success: false,
 			Error: &ErrorInfo{

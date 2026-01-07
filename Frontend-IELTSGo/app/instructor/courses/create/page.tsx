@@ -54,16 +54,31 @@ export default function CreateCoursePage() {
     setLoading(true)
 
     try {
+      // Create slug from title
+      const slug = formData.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+      
+      // Format data according to backend API requirements
       const courseData = {
-        ...formData,
-        modules: modules.map((m) => ({
-          ...m,
-          lessons: m.lessons.map((l) => ({ ...l })),
-        })),
+        title: formData.title,
+        slug: slug,
+        description: formData.description || undefined,
+        short_description: formData.description ? formData.description.substring(0, 200) : undefined,
+        skill_type: formData.category, // map category to skill_type
+        level: formData.level,
+        target_band_score: undefined,
+        thumbnail_url: formData.thumbnail || undefined,
+        preview_video_url: undefined,
+        duration_hours: undefined,
+        enrollment_type: formData.price > 0 ? 'premium' : 'free',
+        price: formData.price,
+        currency: 'VND',
       }
 
       const course = await instructorApi.createCourse(courseData)
       toast.success(t('course_created_successfully') || "Course created successfully")
+      
+      // After creating course, you can add modules and lessons separately
+      // For now, redirect to course detail page
       router.push(`/instructor/courses/${course.id}`)
     } catch (error) {
       console.error("Failed to create course:", error)

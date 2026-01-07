@@ -44,42 +44,47 @@ func SetupRoutes(
 		// Public categories endpoint
 		v1.GET("/categories", handler.GetCategories) // Get all categories
 
-		// Protected review endpoints
+		// Protected review endpoints (student and instructor only)
 		reviews := v1.Group("/courses/:id/reviews")
 		reviews.Use(authMiddleware.AuthRequired())
+		reviews.Use(authMiddleware.RequireRole("student", "instructor"))
 		{
 			reviews.POST("", handler.CreateReview) // Create course review
 			reviews.PUT("", handler.UpdateReview)  // Update course review
 		}
 
-		// Protected video tracking endpoints
+		// Protected video tracking endpoints (student and instructor only)
 		videos := v1.Group("/videos")
 		videos.Use(authMiddleware.AuthRequired())
+		videos.Use(authMiddleware.RequireRole("student", "instructor"))
 		{
 			videos.POST("/track", handler.TrackVideoProgress)       // Track video watch progress
 			videos.GET("/history", handler.GetVideoWatchHistory)    // Get watch history
 			videos.GET("/:id/subtitles", handler.GetVideoSubtitles) // Get video subtitles
 		}
 
-		// Protected material endpoints
+		// Protected material endpoints (student and instructor only)
 		materials := v1.Group("/materials")
 		materials.Use(authMiddleware.AuthRequired())
+		materials.Use(authMiddleware.RequireRole("student", "instructor"))
 		{
 			materials.POST("/:id/download", handler.DownloadMaterial) // Record material download
 		}
 
-		// Protected enrollment endpoints
+		// Protected enrollment endpoints (student and instructor only, admin cannot enroll)
 		enrollments := v1.Group("/enrollments")
 		enrollments.Use(authMiddleware.AuthRequired())
+		enrollments.Use(authMiddleware.RequireRole("student", "instructor"))
 		{
 			enrollments.POST("", handler.EnrollCourse)                      // Enroll in course
 			enrollments.GET("/my", handler.GetMyEnrollments)                // Get my enrollments
 			enrollments.GET("/:id/progress", handler.GetEnrollmentProgress) // Get enrollment progress
 		}
 
-		// Protected lesson progress endpoints
+		// Protected lesson progress endpoints (student and instructor only)
 		progress := v1.Group("/progress")
 		progress.Use(authMiddleware.AuthRequired())
+		progress.Use(authMiddleware.RequireRole("student", "instructor"))
 		{
 			progress.GET("/lessons/:id", handler.GetLessonProgress)    // Get lesson progress (for resume watching)
 			progress.PUT("/lessons/:id", handler.UpdateLessonProgress) // Update lesson progress

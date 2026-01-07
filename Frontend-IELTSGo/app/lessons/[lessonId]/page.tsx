@@ -87,6 +87,12 @@ export default function LessonDetailPage() {
   }
 
   const handleStartExercise = () => {
+    // Prevent admins from starting exercises
+    if (user?.role === 'admin') {
+      toast.error(t('admin_cannot_start_exercise') || 'Admins cannot start exercises. Use a student or instructor account.')
+      return
+    }
+    
     const exerciseId = lesson?.lesson?.completion_criteria?.exercise_id
     if (exerciseId) {
       // Pass lesson context via URL params

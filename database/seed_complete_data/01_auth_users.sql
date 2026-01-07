@@ -130,7 +130,8 @@ INSERT INTO user_roles (user_id, role_id, assigned_at) VALUES
 ('b0000015-0000-0000-0000-000000000015'::uuid, 2, NOW() - INTERVAL '110 days')
 ON CONFLICT (user_id, role_id) DO NOTHING;
 
--- Assign student role (role_id = 1) to all students
+-- Assign student role (role_id = 1) to all students ONLY
+-- Admins and instructors do NOT get student role to maintain role separation
 INSERT INTO user_roles (user_id, role_id, assigned_at)
 SELECT 
     id,
@@ -138,16 +139,6 @@ SELECT
     created_at
 FROM users 
 WHERE id::text LIKE 'f%'
-ON CONFLICT (user_id, role_id) DO NOTHING;
-
--- Also assign student role to admins and instructors (they can also be students)
-INSERT INTO user_roles (user_id, role_id, assigned_at)
-SELECT 
-    id,
-    1,
-    created_at
-FROM users 
-WHERE id::text LIKE 'a%' OR id::text LIKE 'b%'
 ON CONFLICT (user_id, role_id) DO NOTHING;
 
 

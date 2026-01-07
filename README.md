@@ -1,500 +1,388 @@
-# IELTS Learning Platform - Backend Microservices
+# HỆ THỐNG HỌC IELTS ĐA NỀN TẢNG
 
-## 🚀 Quick Start
+## 1. GIỚI THIỆU
 
-### 🎯 Full Stack Setup (Backend + Frontend)
+### 1.1 Mục tiêu
+
+Xây dựng hệ thống học IELTS toàn diện hỗ trợ đa nền tảng (Web, Mobile), tích hợp trí tuệ nhân tạo để đánh giá và chấm điểm tự động các kỹ năng Writing và Speaking theo tiêu chuẩn IELTS.
+
+### 1.2 Đối tượng sử dụng
+
+- **Học viên**: Theo dõi tiến độ, làm bài tập, xem bài giảng
+- **Giảng viên**: Tạo và quản lý khóa học, bài giảng, bài tập
+- **Quản trị viên**: Quản lý toàn bộ hệ thống và người dùng
+
+### 1.3 Phạm vi chức năng
+
+Hệ thống cung cấp các chức năng chính: (1) Quản lý khóa học với cấu trúc modules và lessons, (2) Hệ thống bài tập Listening và Reading với tự động chấm điểm, (3) Đánh giá Writing dựa trên 4 tiêu chí IELTS, (4) Đánh giá Speaking với phân tích phát âm, (5) Theo dõi tiến độ học tập, (6) Thông báo đa kênh, và (7) Lưu trữ file đa phương tiện.
+
+---
+
+## 2. KIẾN TRÚC HỆ THỐNG
+
+### 2.1 Mô hình tổng quan
+
+Hệ thống được thiết kế theo kiến trúc Microservices với ba tầng chính:
+
+**Tầng Frontend**: Giao diện Web (Next.js 14) và Mobile (React Native - dự kiến) cho phép người dùng tương tác qua HTTP/REST API.
+
+**Tầng Application**: Bao gồm API Gateway và 7 microservices độc lập:
+- API Gateway (Port 8080): Điểm vào duy nhất, xử lý định tuyến, xác thực, rate limiting
+- Auth Service (Port 8081): Xác thực và phân quyền
+- User Service (Port 8082): Quản lý thông tin cá nhân và tiến độ
+- Course Service (Port 8083): Quản lý khóa học và nội dung
+- Exercise Service (Port 8084): Quản lý bài tập và chấm điểm
+- AI Service (Port 8085): Đánh giá Writing và Speaking
+- Notification Service (Port 8086): Thông báo đa kênh
+
+**Tầng Infrastructure**: PostgreSQL (6 databases), Redis (cache), RabbitMQ (message queue), MinIO (object storage).
+
+### 2.2 Nguyên lý hoạt động
+
+Client gửi request đến API Gateway, Gateway xác thực JWT token và định tuyến đến microservice phù hợp. Các service xử lý business logic độc lập và giao tiếp qua REST API. Các tác vụ nặng (AI evaluation, email) được xử lý bất đồng bộ qua RabbitMQ. Redis lưu cache và session. MinIO lưu trữ file media.
+
+---
+
+## 3. CHI TIẾT CÁC THÀNH PHẦN
+
+### 3.1 API Gateway
+
+**Chức năng**: Định tuyến request theo URL pattern, xác thực JWT token, giới hạn số request (100/phút), phân tải request, xử lý CORS, ghi log request/response.
+
+**Công nghệ**: Go, Gin Framework.
+
+### 3.2 Auth Service
+
+**Chức năng**: Đăng ký tài khoản với validation và hash password (bcrypt cost 12), đăng nhập với JWT token (Access: 24h, Refresh: 7 days), phân quyền RBAC với 3 roles (Student, Instructor, Admin), hỗ trợ Google OAuth 2.0.
+
+**Database**: auth_db (9 tables) - users, roles, permissions, user_roles, refresh_tokens, oauth_providers, login_history.
+
+### 3.3 User Service
+
+**Chức năng**: Quản lý profile (avatar, bio, contact), thiết lập mục tiêu IELTS target score, theo dõi số giờ học và số bài đã hoàn thành, phân tích điểm mạnh/yếu theo skill, hệ thống achievement và leaderboard.
+
+**Database**: user_db (10 tables) - user_profiles, learning_progress, study_goals, achievements, statistics.
+
+### 3.4 Course Service
+
+**Chức năng**: CRUD courses với phân loại theo skill (Listening, Reading, Writing, Speaking) và difficulty level, cấu trúc Course → Modules → Lessons, upload và streaming video qua MinIO, theo dõi watch progress, enrollment với kiểm tra prerequisites.
+
+**Database**: course_db (12 tables) - courses, modules, lessons, lesson_videos, enrollments, materials.
+
+### 3.5 Exercise Service
+
+**Chức năng**: Tạo bài tập Listening và Reading theo format IELTS (Multiple Choice, True/False/Not Given, Matching, Fill in the Blanks), quản lý question bank với passage/audio, tự động chấm điểm trắc nghiệm và tính band score, lưu submission history.
+
+**Database**: exercise_db (11 tables) - exercises, questions, options, attempts, answers, results.
+
+### 3.6 AI Service
+
+**Chức năng**:
+
+**Writing Evaluation**: Phân tích bài viết theo 4 tiêu chí IELTS - Task Achievement, Coherence & Cohesion, Lexical Resource, Grammatical Range & Accuracy. Sử dụng OpenAI GPT-4, scoring 0-9 cho từng tiêu chí, generate feedback chi tiết.
+
+**Speaking Evaluation**: Chuyển đổi audio thành text (OpenAI Whisper), phân tích phát âm, đánh giá grammar và vocabulary, scoring theo 4 tiêu chí (Fluency, Lexical, Grammar, Pronunciation).
+
+Xử lý bất đồng bộ qua RabbitMQ để không block request.
+
+**Database**: ai_db (10 tables) - writing_submissions, writing_evaluations, speaking_submissions, speaking_evaluations, transcripts, pronunciation_analysis.
+
+### 3.7 Notification Service
+
+**Chức năng**: Gửi Push notification qua Firebase FCM, gửi email qua SMTP (Gmail/SendGrid), in-app notification qua WebSocket, scheduled reminders cho học tập.
+
+**Database**: notification_db (8 tables) - notifications, templates, device_tokens, email_queue.
+
+---
+
+## 4. CƠ SỞ DỮ LIỆU
+
+### 4.1 Database Architecture
+
+Áp dụng pattern "Database per Service" - mỗi microservice có database riêng để đảm bảo loose coupling, independent scaling và fault isolation. Tổng cộng 60 tables trên 6 databases PostgreSQL.
+
+### 4.2 Cross-Database References
+
+Sử dụng dblink extension để query cross-database khi cần thiết:
+- user_db.user_profiles.user_id → auth_db.users.id
+- course_db.course_enrollments.user_id → auth_db.users.id
+- exercise_db.exercise_attempts.user_id → auth_db.users.id
+
+### 4.3 Migration System
+
+Database migrations được quản lý bằng numbered SQL files (001, 002, ...) trong thư mục database/migrations. Migration tracker lưu history trong bảng schema_migrations. Tự động chạy khi setup hoặc update.
+
+---
+
+## 5. LUỒNG HOẠT ĐỘNG
+
+### 5.1 Luồng xác thực
+
+User gửi credentials → API Gateway → Auth Service validate → Hash password → Query auth_db → Generate JWT tokens (Access 24h + Refresh 7 days) → Store session in Redis → Return tokens → Frontend lưu vào LocalStorage.
+
+### 5.2 Luồng học khóa học
+
+User request courses → API Gateway verify JWT → Course Service query course_db → Return list → User enroll → Check prerequisites → Insert enrollment → Publish event → User watch video → Get pre-signed URL from MinIO (expires 1h) → Track progress every 10s.
+
+### 5.3 Luồng làm bài tập
+
+User view exercises → Exercise Service return list → User start → Create attempt (status: in_progress) → Start timer → User submit answers → Auto-grade → Compare correct answers → Calculate band score → Publish "exercise.completed" event → User Service update statistics.
+
+### 5.4 Luồng đánh giá Writing
+
+User submit essay → AI Service validate → Insert writing_submissions → Publish job to RabbitMQ → Return submission_id (status: pending) → AI Worker consume job → Call OpenAI GPT-4 → Parse response → Calculate scores (TA, CC, LR, GRA) → Average band score → Generate feedback → Update status: completed → User polling result.
+
+### 5.5 Luồng đánh giá Speaking
+
+User upload audio → AI Service validate → Upload to MinIO → Insert speaking_submissions → Publish job → AI Worker download audio → Call Whisper API (Speech-to-Text) → Analyze transcript with GPT-4 → Pronunciation analysis → Calculate scores → Generate feedback → Update status: completed.
+
+---
+
+## 6. CÔNG NGHỆ SỬ DỤNG
+
+### 6.1 Backend
+
+- Go 1.21+: Ngôn ngữ chính cho microservices
+- Gin: HTTP routing framework
+- GORM: ORM cho PostgreSQL
+- JWT-go: JWT token handling
+- bcrypt: Password hashing
+
+### 6.2 Frontend
+
+- Next.js 14: React framework với SSR/SSG
+- TypeScript: Type safety
+- TailwindCSS: Utility-first CSS
+- shadcn/ui: Component library
+
+### 6.3 Infrastructure
+
+- PostgreSQL 15: Primary database (6 databases)
+- Redis 7: Cache và session storage
+- RabbitMQ 3: Message queue
+- MinIO: S3-compatible object storage
+- Docker & Docker Compose: Containerization
+
+### 6.4 External APIs
+
+- OpenAI GPT-4: Writing evaluation
+- OpenAI Whisper: Speech-to-Text
+- Firebase Cloud Messaging: Push notifications
+- Google OAuth 2.0: Social login
+- SMTP: Email delivery
+
+---
+
+## 7. HƯỚNG DẪN CÀI ĐẶT
+
+### 7.1 Yêu cầu hệ thống
+
+- Docker 20.10+
+- Docker Compose 2.0+
+- RAM: 4GB minimum (8GB recommended)
+- Disk: 10GB free space
+
+### 7.2 Cài đặt Backend
 
 ```bash
-# 1. Clone project
 git clone https://github.com/bisosad1501/DATN.git
 cd DATN
-
-# 2. Setup Backend (Docker services)
 chmod +x setup.sh
 ./setup.sh
+```
 
-# 3. Setup Frontend
+Script tự động: Check Docker, tạo .env file, build images, start infrastructure (PostgreSQL, Redis, RabbitMQ, MinIO), chạy migrations, start microservices.
+
+### 7.3 Cài đặt Frontend
+
+```bash
 cd Frontend-IELTSGo
-./setup-team.sh    # Script tự động setup cho team
-
-# Script sẽ tự động:
-# ✓ Check & install pnpm nếu chưa có
-# ✓ Copy .env.example → .env.local
-# ✓ Install dependencies (pnpm install)
-# ✓ Check backend status
-# ✓ Hỏi có muốn chạy dev server không
+chmod +x setup-team.sh
+./setup-team.sh
+pnpm dev
 ```
 
-**Access:**
+### 7.4 Truy cập hệ thống
+
 - Frontend: http://localhost:3000
-- Backend API: http://localhost:8080
-- PgAdmin: http://localhost:5050
+- API Gateway: http://localhost:8080
+- PgAdmin: http://localhost:5050 (admin@ielts.com / admin)
+- RabbitMQ Management: http://localhost:15672 (ielts_admin / ielts_rabbitmq_password)
+- MinIO Console: http://localhost:9001 (ielts_admin / ielts_minio_password_2025)
 
-**Frontend Documentation:**
-- 📖 **Setup Guide**: `Frontend-IELTSGo/SETUP_GUIDE.md` (chi tiết nhất)
-- 🚀 **Quick Start**: `FRONTEND_TEAM_SETUP.md` (ở root)
-- 🏗️ **Architecture**: `Frontend-IELTSGo/ARCHITECTURE.md`
-
----
-
-### 📦 Backend Only Setup
-
-#### Cài đặt mới (Lần đầu hoặc Fresh Install)
+### 7.5 Kiểm tra services
 
 ```bash
-# 1. Clone project
-git clone https://github.com/bisosad1501/DATN.git
-cd DATN
-
-# 2. Chạy script tự động (tất cả trong 1 lệnh!)
-chmod +x setup.sh
-./setup.sh
-
-# ✅ Script sẽ tự động:
-#    - Kiểm tra Docker & Docker Compose
-#    - Tạo .env file (nếu chưa có)
-#    - Build tất cả Docker images
-#    - Start database & infrastructure
-#    - Chạy migrations
-#    - Start tất cả services
-```
-
-#### Update code (Khi đã có project và cần pull code mới)
-
-```bash
-# Chỉ cần 1 lệnh!
-chmod +x update.sh
-./update.sh
-
-# ✅ Script sẽ tự động:
-#    - Pull code mới từ git
-#    - Rebuild các services đã thay đổi
-#    - Chạy migrations mới (nếu có)
-#    - Restart services
-```
-
-#### Manual Setup (Nếu muốn control từng bước)
-
-```bash
-# 1. Tạo .env từ template
-cp .env.example .env
-
-# 2. Build và start services
-docker-compose up -d --build
-
-# 3. Chạy migrations
-docker-compose up migrations
-
-# 4. Kiểm tra status
 docker-compose ps
+docker-compose logs -f api-gateway
+curl http://localhost:8080/health
 ```
 
-**Chi tiết**: Xem [TEAM_SETUP.md](./TEAM_SETUP.md) hoặc [QUICK_START.md](./QUICK_START.md)
-
----
-
-## 🗄️ Database Migrations
-
-**Migrations tự động chạy** khi dùng `./setup.sh` hoặc `./update.sh`
+### 7.6 Database migrations
 
 ```bash
-# Chạy manual (nếu cần)
 ./scripts/run-all-migrations.sh
-
-# Hoặc via Docker
-docker-compose up migrations
-
-# Check migrations đã apply
-docker exec -i ielts_postgres psql -U ielts_admin -d course_db -c \
-  "SELECT * FROM schema_migrations ORDER BY applied_at DESC LIMIT 5;"
+docker exec -i ielts_postgres psql -U ielts_admin -d auth_db -c "SELECT * FROM schema_migrations;"
 ```
 
-**Migration Files:** `database/migrations/*.sql` (numbered: 001, 002, ...)  
-**Docs:** `database/README.md` và `database/migrations/README_MIGRATION_*.md`
+### 7.7 Seed data
 
-**⚠️ Quan trọng:**
-- Migration 011: Xóa field `video_watch_percentage`
-- Migration 012: Enable dblink extension (cross-database queries)
+Tài khoản demo:
+- Admin: admin@ielts.com / Admin@123
+- Instructor: instructor@ielts.com / Instructor@123
+- Student: student@ielts.com / Student@123
 
 ---
 
-## 📋 Tổng quan
+## 8. API ENDPOINTS
 
-Hệ thống học IELTS trực tuyến với kiến trúc microservices, được xây dựng bằng Golang và PostgreSQL.
+### 8.1 Authentication (8081)
 
-**Tech Stack:**
-- **Backend**: Go 1.21+ (Microservices)
-- **Frontend**: Next.js 14, TypeScript, TailwindCSS (trong folder `Frontend-IELTSGo/`)
-- **Database**: PostgreSQL 15
-- **Cache**: Redis
-- **Message Queue**: RabbitMQ
+- POST /auth/register - Đăng ký tài khoản
+- POST /auth/login - Đăng nhập
+- POST /auth/refresh - Refresh token
+- POST /auth/logout - Đăng xuất
+- POST /auth/google - Google OAuth login
 
-## 🏗️ Kiến trúc Microservices
+### 8.2 User (8082)
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                         API Gateway                          │
-│                    (Port: 8080)                              │
-└─────────────────────────────────────────────────────────────┘
-                              │
-        ┌─────────────────────┼─────────────────────┐
-        │                     │                     │
-┌───────▼────────┐   ┌───────▼────────┐   ┌───────▼────────┐
-│  Auth Service  │   │  User Service  │   │ Course Service │
-│  (Port: 8081)  │   │  (Port: 8082)  │   │  (Port: 8083)  │
-└────────────────┘   └────────────────┘   └────────────────┘
-        │                     │                     │
-┌───────▼────────┐   ┌───────▼────────┐   ┌───────▼────────┐
-│Exercise Service│   │   AI Service   │   │Notification Srv│
-│  (Port: 8084)  │   │  (Port: 8085)  │   │  (Port: 8086)  │
-└────────────────┘   └────────────────┘   └────────────────┘
-```
+- GET /users/profile - Xem profile
+- PUT /users/profile - Cập nhật profile
+- GET /users/progress - Tiến độ học tập
+- GET /users/statistics - Thống kê chi tiết
+- GET /users/achievements - Danh sách thành tựu
 
-## 📦 Services
+### 8.3 Course (8083)
 
-### 1. **API Gateway** (Port: 8080)
-- Routing requests đến các microservices
-- Authentication middleware
-- Rate limiting
-- Load balancing
+- GET /courses - Danh sách khóa học
+- GET /courses/:id - Chi tiết khóa học
+- POST /courses - Tạo khóa học (Instructor)
+- POST /courses/:id/enroll - Đăng ký khóa học
+- GET /courses/:id/lessons/:lessonId - Chi tiết bài học
+- POST /lessons/:id/progress - Cập nhật tiến độ
 
-### 2. **Auth Service** (Port: 8081)
-- Đăng ký, đăng nhập
-- JWT token generation & validation
-- Phân quyền: Student, Instructor, Admin
-- Refresh token mechanism
+### 8.4 Exercise (8084)
 
-### 3. **User Service** (Port: 8082)
-- Quản lý profile học viên
-- Dashboard tracking tiến trình
-- Learning statistics
-- Study goals & reminders
+- GET /exercises - Danh sách bài tập
+- GET /exercises/:id - Chi tiết bài tập
+- POST /exercises/:id/start - Bắt đầu làm bài
+- POST /attempts/:id/answers - Lưu câu trả lời
+- POST /attempts/:id/submit - Nộp bài
+- GET /attempts/:id - Xem kết quả
 
-### 4. **Course Service** (Port: 8083)
-- Quản lý courses, modules, lessons
-- Video lectures (4 skills: Listening, Reading, Writing, Speaking)
-- Learning materials & resources
-- Course enrollment
+### 8.5 AI (8085)
 
-### 5. **Exercise Service** (Port: 8084)
-- Bài tập Listening & Reading
-- Question bank management
-- Auto-grading cho trắc nghiệm
-- Submission history
+- POST /ai/writing/submit - Nộp bài Writing
+- GET /ai/writing/submissions/:id - Kết quả chấm Writing
+- POST /ai/speaking/submit - Nộp bài Speaking
+- GET /ai/speaking/submissions/:id - Kết quả chấm Speaking
 
-### 6. **AI Service** (Port: 8085)
-- Writing evaluation (Task Achievement, Coherence, Lexical, Grammar)
-- Speaking evaluation (Speech-to-Text + NLP)
-- Pronunciation analysis
-- Feedback generation
+### 8.6 Notification (8086)
 
-### 7. **Notification Service** (Port: 8086)
-- Push notifications (Android)
-- Email notifications
-- In-app notifications
-- Study reminders
+- GET /notifications - Danh sách thông báo
+- PUT /notifications/:id/read - Đánh dấu đã đọc
+- POST /notifications/register-device - Đăng ký device token
+- GET /notifications/preferences - Cài đặt thông báo
 
-## 🗄️ Database Design
+---
 
-Mỗi service có database riêng (Database per Service pattern):
+## 9. BẢO MẬT
 
-- **auth_db**: Authentication data
-- **user_db**: User profiles & progress
-- **course_db**: Course content & materials
-- **exercise_db**: Questions & submissions
-- **ai_db**: AI evaluations & feedback
-- **notification_db**: Notification queue
+### 9.1 Authentication
 
-## 🛠️ Tech Stack
+JWT tokens với Access token (24h) và Refresh token (7 days). Password hashing sử dụng bcrypt với cost factor 12. HTTPS bắt buộc trong production.
 
-- **Language**: Go 1.21+
-- **Database**: PostgreSQL 15
-- **Cache**: Redis
-- **Message Queue**: RabbitMQ
-- **Containerization**: Docker & Docker Compose
-- **API Documentation**: Swagger/OpenAPI
+### 9.2 Authorization
 
-## 🚀 Quick Start
+Role-Based Access Control (RBAC) với 3 roles:
+- **Student**: Xem courses, làm bài tập, xem tiến độ
+- **Instructor**: Quyền Student + Tạo/sửa courses và bài tập
+- **Admin**: Full access, quản lý users, view logs
 
+### 9.3 Security Practices
+
+Input validation trên tất cả endpoints. SQL injection prevention (GORM ORM). XSS protection (sanitize HTML). Rate limiting (100 requests/minute per IP). Audit logging. Refresh token rotation. Secure session storage (Redis).
+
+---
+
+## 10. PERFORMANCE
+
+### 10.1 Caching Strategy
+
+Redis cache cho: Session management, frequently accessed data (course list, user profiles), API response cache với TTL 5 phút.
+
+### 10.2 Database Optimization
+
+Indexes trên columns thường query (user_id, course_id, email). Connection pooling (max 50 connections per service). Query optimization (avoid N+1 queries).
+
+### 10.3 Asynchronous Processing
+
+RabbitMQ xử lý các tác vụ nặng: AI evaluation (30-60s), email sending, notification delivery. Background workers consume jobs từ queue.
+
+### 10.4 Horizontal Scaling
+
+Services có thể scale độc lập:
 ```bash
-# Clone repository
-git clone <repo-url>
-cd DATN
-
-# Start all services with Docker Compose
-docker-compose up -d
-
-# Check services status
-docker-compose ps
-
-# View logs
-docker-compose logs -f
+docker-compose up -d --scale course-service=3
 ```
 
-## 📁 Project Structure
+API Gateway tự động load balance requests.
 
-```
-DATN/
-├── api-gateway/
-├── services/
-│   ├── auth-service/
-│   ├── user-service/
-│   ├── course-service/
-│   ├── exercise-service/
-│   ├── ai-service/
-│   └── notification-service/
-├── shared/
-│   ├── config/
-│   ├── database/
-│   ├── middleware/
-│   ├── models/
-│   └── utils/
-├── database/
-│   ├── migrations/
-│   └── seeds/
-├── docker-compose.yml
-└── README.md
-```
+### 10.5 Performance Targets
 
-## 🔐 Environment Variables
-
-Xem file `.env.example` để cấu hình môi trường.
-
-## 📚 API Documentation
-
-Sau khi start services, truy cập:
-- Swagger UI: http://localhost:8080/swagger
-
-## 🧪 Testing
-
-```bash
-# Run unit tests
-go test ./...
-
-# Run integration tests
-go test -tags=integration ./...
-```
-
-## � Database Overview
-
-### Service Databases
-
-| Service | Database | Tables | Purpose |
-|---------|----------|--------|---------|
-| Auth Service | `auth_db` | 9 tables | Authentication, roles, permissions, JWT tokens |
-| User Service | `user_db` | 10 tables | User profiles, learning progress, achievements |
-| Course Service | `course_db` | 12 tables | Courses, lessons, videos, enrollments |
-| Exercise Service | `exercise_db` | 11 tables | Exercises, questions, answers, submissions |
-| AI Service | `ai_db` | 10 tables | Writing/Speaking evaluations, AI processing |
-| Notification Service | `notification_db` | 8 tables | Notifications, push/email delivery |
-
-**Total**: 60 tables across 6 databases
-
-Xem chi tiết: [Database Documentation](database/README.md)
+- API response time: < 200ms (p95)
+- Database query time: < 50ms (p95)
+- AI evaluation: < 30s (writing), < 60s (speaking)
+- System uptime: 99.9%
 
 ---
 
-## 🔗 API Endpoints
+## 11. ROADMAP
 
-### Authentication Service (8081)
-- `POST /auth/register` - Đăng ký
-- `POST /auth/login` - Đăng nhập
-- `POST /auth/refresh` - Refresh token
-- `POST /auth/logout` - Đăng xuất
+### Phase 1: Foundation (Hoàn thành)
+Database schemas (60 tables), Docker infrastructure, migrations system, seed data.
 
-### User Service (8082)
-- `GET /users/profile` - Xem profile
-- `PUT /users/profile` - Cập nhật profile
-- `GET /users/progress` - Tiến trình học tập
-- `GET /users/achievements` - Thành tựu
+### Phase 2: Core Services (80%)
+Auth Service (hoàn thành), User Service (hoàn thành), Course Service (90%), Exercise Service (85%), AI Service (50%), Notification Service (60%).
 
-### Course Service (8083)
-- `GET /courses` - Danh sách khóa học
-- `GET /courses/:id` - Chi tiết khóa học
-- `POST /courses/:id/enroll` - Đăng ký khóa học
-- `GET /courses/:courseId/lessons/:lessonId` - Xem bài học
+### Phase 3: Frontend (70%)
+Next.js setup, authentication pages, dashboard, course pages (80%), exercise pages (70%), AI evaluation pages (40%).
 
-### Exercise Service (8084)
-- `GET /exercises` - Danh sách bài tập
-- `POST /exercises/:id/start` - Bắt đầu làm bài
-- `POST /exercises/attempts/:id/submit` - Nộp bài
+### Phase 4: AI Integration
+OpenAI GPT-4 integration, Whisper Speech-to-Text, pronunciation analysis, feedback generation.
 
-### AI Service (8085)
-- `POST /ai/writing/submit` - Nộp bài Writing
-- `GET /ai/writing/submissions/:id` - Kết quả chấm Writing
-- `POST /ai/speaking/submit` - Nộp bài Speaking
-- `GET /ai/speaking/submissions/:id` - Kết quả chấm Speaking
+### Phase 5: Mobile App
+React Native, Android/iOS builds, push notification, offline mode.
 
-### Notification Service (8086)
-- `GET /notifications` - Danh sách thông báo
-- `PUT /notifications/:id/read` - Đánh dấu đã đọc
-- `POST /notifications/register-device` - Đăng ký push notification
+### Phase 6: Advanced Features
+Live classes, payment integration, social features, gamification.
 
-Xem chi tiết: [API Documentation](docs/API_ENDPOINTS.md)
+### Phase 7: Production
+CI/CD pipeline, Kubernetes deployment, monitoring (Prometheus/Grafana), load testing.
 
 ---
 
-## 🎯 Features Roadmap
+## 12. TÀI LIỆU THAM KHẢO
 
-### Phase 1: Core Features (Current)
-- ✅ Database schema design
-- ✅ Docker infrastructure setup
-- 🔄 Basic CRUD APIs
-- 🔄 Authentication & Authorization
-- 🔄 User management
-
-### Phase 2: Learning Features
-- ⏳ Course management
-- ⏳ Video streaming
-- ⏳ Exercise system (Listening/Reading)
-- ⏳ Progress tracking
-
-### Phase 3: AI Integration
-- ⏳ Writing AI evaluation
-- ⏳ Speaking AI evaluation (Speech-to-Text + NLP)
-- ⏳ Pronunciation analysis
-- ⏳ Feedback generation
-
-### Phase 4: Advanced Features
-- ⏳ Notification system
-- ⏳ Achievement system
-- ⏳ Android app
-- ⏳ Payment integration
-- ⏳ Live classes
-
-### Phase 5: Optimization
-- ⏳ Performance optimization
-- ⏳ Caching strategy
-- ⏳ Load testing
-- ⏳ CI/CD pipeline
+- README.md: Tài liệu chính
+- database/README.md: Database overview và migration guide
+- docs/MIGRATION_PLAN.md: Kiến trúc hệ thống chi tiết
+- docs/DATA_MODEL_RELATIONSHIPS.md: Mối quan hệ giữa các bảng
+- Frontend-IELTSGo/SETUP_GUIDE.md: Hướng dẫn setup frontend
+- postman/: API collection và environment
 
 ---
 
-## 🛡️ Security Features
+## 13. KẾT LUẬN
 
-- JWT-based authentication
-- Password hashing with bcrypt
-- Role-based access control (RBAC)
-- Rate limiting
-- SQL injection prevention
-- XSS protection
-- CORS configuration
-- Audit logging
-- Refresh token rotation
+Hệ thống học IELTS đa nền tảng được xây dựng với kiến trúc Microservices hiện đại, tích hợp AI để đánh giá tự động Writing và Speaking. Hệ thống áp dụng các best practices về security (JWT, RBAC), performance (caching, message queue), và scalability (horizontal scaling, database per service). 
+
+Công nghệ sử dụng: Go cho backend (performance cao, concurrency tốt), PostgreSQL cho data persistence (ACID, relations), Redis cho caching, RabbitMQ cho async processing, Docker cho containerization. Frontend sử dụng Next.js 14 với SSR/SSG để tối ưu SEO và performance.
+
+Hệ thống đã hoàn thành 80% core features, tiếp tục phát triển AI integration và mobile app trong các phase tiếp theo.
 
 ---
 
-## 🔧 Configuration
-
-### Environment Variables
-
-Key environment variables (xem `.env.example` để biết đầy đủ):
-
-```bash
-# Database
-POSTGRES_USER=ielts_admin
-POSTGRES_PASSWORD=your_secure_password
-
-# JWT
-JWT_SECRET=your_jwt_secret_key
-JWT_EXPIRY=24h
-
-# AI Services
-OPENAI_API_KEY=your_openai_api_key
-
-# Notifications
-FCM_SERVER_KEY=your_fcm_key
-SMTP_HOST=smtp.gmail.com
-```
-
----
-
-## 📈 Performance Considerations
-
-### Database Optimization
-- Proper indexing on frequently queried columns
-- Connection pooling
-- Read replicas for heavy read operations
-- Materialized views for analytics
-
-### Caching Strategy
-- Redis for session management
-- Cache frequently accessed data (courses, users)
-- Cache invalidation on updates
-
-### Message Queue
-- RabbitMQ for async processing
-- AI evaluation jobs
-- Email sending
-- Notification delivery
-
----
-
-## 👥 Team Workflow
-
-### Git Workflow
-```bash
-# Create feature branch
-git checkout -b feature/auth-service
-
-# Commit changes
-git add .
-git commit -m "feat: implement JWT authentication"
-
-# Push to remote
-git push origin feature/auth-service
-
-# Create Pull Request on GitHub
-```
-
-### Commit Message Convention
-- `feat:` - New feature
-- `fix:` - Bug fix
-- `docs:` - Documentation
-- `style:` - Code style changes
-- `refactor:` - Code refactoring
-- `test:` - Tests
-- `chore:` - Maintenance
-
----
-
-## 🧪 Testing Strategy
-
-### Unit Tests
-```bash
-go test ./...
-```
-
-### Integration Tests
-```bash
-go test -tags=integration ./...
-```
-
-### API Tests
-Sử dụng Postman hoặc curl để test APIs
-
----
-
-## 📚 Documentation
-
-- [Quick Start Guide](QUICK_START.md)
-- [Database Schema Documentation](database/README.md)
-- [API Endpoints](docs/API_ENDPOINTS.md)
-- [MinIO Storage Setup](docs/MINIO_SETUP.md)
-- [Architecture Overview](docs/ARCHITECTURE.md) (TODO)
-
----
-
-## 🤝 Contributing
-
-1. Fork the project
-2. Create your feature branch
-3. Commit your changes
-4. Push to the branch
-5. Open a Pull Request
-
----
-
-## �📝 License
-
-MIT License
+**Ngày cập nhật**: Tháng 1, 2026  
+**Version**: 1.0.0  
+**License**: MIT
