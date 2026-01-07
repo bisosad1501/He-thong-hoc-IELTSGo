@@ -369,6 +369,10 @@ echo -e "${YELLOW}→ Adding timestamp validation constraints (FINAL STEP)...${N
 run_sql_file_docker "auth_db" "$SEED_DIR/27_add_timestamp_constraints.sql" "Timestamp Validation Constraints"
 echo ""
 
+echo -e "${YELLOW}→ Fixing Writing/Speaking exercises total_questions...${NC}"
+run_sql_file_docker "exercise_db" "$SEED_DIR/99_fix_writing_speaking_questions.sql" "Fix Writing/Speaking Questions Count"
+echo ""
+
 echo ""
 echo -e "${GREEN}============================================${NC}"
 echo -e "${GREEN}✅ COMPLETE!${NC}"
@@ -382,6 +386,7 @@ echo -e "  ${GREEN}✓${NC} Exercise attempts synced to user service"
 echo -e "  ${GREEN}✓${NC} Cross-database validation enabled"
 echo -e "  ${GREEN}✓${NC} Timestamps fixed and validated"
 echo -e "  ${GREEN}✓${NC} Performance indexes created"
+echo -e "  ${GREEN}✓${NC} Writing/Speaking questions count fixed"
 echo ""
 echo -e "${YELLOW}📖 For detailed analysis, see: database/seed_complete_data/VALIDATION_REPORT.md${NC}"
 echo ""

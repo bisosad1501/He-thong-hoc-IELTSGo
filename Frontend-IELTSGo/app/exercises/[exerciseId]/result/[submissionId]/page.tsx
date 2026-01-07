@@ -601,9 +601,22 @@ export default function ExerciseResultPage() {
             <CardTitle className="text-3xl mb-2">
               {passed ? t('congratulations') : t('better_luck_next_time')}
             </CardTitle>
-            <p className="text-muted-foreground">
-              {t('you_scored')} {performance.correct_answers}/{performance.total_questions} {t('questions_correct')}
-            </p>
+            {/* Different messages for different skill types */}
+            {exercise.skill_type?.toLowerCase() === 'writing' ? (
+              <p className="text-muted-foreground">
+                {submission.word_count ? `${submission.word_count} ${t('words_written')}` : t('essay_submitted')}
+              </p>
+            ) : exercise.skill_type?.toLowerCase() === 'speaking' ? (
+              <p className="text-muted-foreground">
+                {submission.audio_duration_seconds 
+                  ? `${t('speaking_duration')}: ${Math.floor(submission.audio_duration_seconds / 60)}:${String(submission.audio_duration_seconds % 60).padStart(2, '0')}`
+                  : t('audio_submitted')}
+              </p>
+            ) : (
+              <p className="text-muted-foreground">
+                {t('you_scored')} {performance.correct_answers}/{performance.total_questions} {t('questions_correct')}
+              </p>
+            )}
             <p className="text-2xl font-semibold text-primary mt-2">
               {performance.score.toFixed(1)}%
             </p>
@@ -613,32 +626,99 @@ export default function ExerciseResultPage() {
               <Progress value={performance.score} className="w-full max-w-md" />
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-              <div className="text-center p-4 bg-green-50 dark:bg-green-950 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-2">{t('correct_answers')}</p>
-                <p className="text-2xl font-bold text-green-600">{performance.correct_answers ?? 0}</p>
-              </div>
-              <div className="text-center p-4 bg-red-50 dark:bg-red-950 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-2">{t('incorrect_answers')}</p>
-                <p className="text-2xl font-bold text-red-600">{performance.incorrect_answers ?? 0}</p>
-              </div>
-              <div className="text-center p-4 bg-gray-50 dark:bg-gray-950 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-2">{t('skipped_answers')}</p>
-                <p className="text-2xl font-bold text-gray-600">{performance.skipped_answers ?? 0}</p>
-              </div>
-              <div className="text-center p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-2">{t('time_spent')}</p>
-                <p className="text-2xl font-bold text-blue-600">
-                  {(() => {
-                    const totalSeconds = performance.time_spent_seconds ?? 0
-                    const minutes = Math.floor(totalSeconds / 60)
-                    const seconds = totalSeconds % 60
-                    if (minutes > 0) {
-                      return `${minutes}m ${seconds}s`
-                    }
-                    return `${seconds}s`
-                  })()}
-                </p>
-              </div>
+              {/* Show different stats for Writing/Speaking vs Reading/Listening */}
+              {exercise.skill_type?.toLowerCase() === 'writing' ? (
+                <>
+                  <div className="text-center p-4 bg-orange-50 dark:bg-orange-950 rounded-lg">
+                    <p className="text-xs text-muted-foreground mb-2">{t('word_count')}</p>
+                    <p className="text-2xl font-bold text-orange-600">{submission.word_count || 0}</p>
+                  </div>
+                  <div className="text-center p-4 bg-purple-50 dark:bg-purple-950 rounded-lg">
+                    <p className="text-xs text-muted-foreground mb-2">{t('evaluation_status')}</p>
+                    <p className="text-sm font-bold text-purple-600">{submission.evaluation_status || 'pending'}</p>
+                  </div>
+                  <div className="text-center p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
+                    <p className="text-xs text-muted-foreground mb-2">{t('time_spent')}</p>
+                    <p className="text-2xl font-bold text-blue-600">
+                      {(() => {
+                        const totalSeconds = performance.time_spent_seconds ?? 0
+                        const minutes = Math.floor(totalSeconds / 60)
+                        const seconds = totalSeconds % 60
+                        if (minutes > 0) {
+                          return `${minutes}m ${seconds}s`
+                        }
+                        return `${seconds}s`
+                      })()}
+                    </p>
+                  </div>
+                  <div className="text-center p-4 bg-green-50 dark:bg-green-950 rounded-lg">
+                    <p className="text-xs text-muted-foreground mb-2">{t('task_type')}</p>
+                    <p className="text-lg font-bold text-green-600">{submission.task_type || exercise.writing_task_type || 'N/A'}</p>
+                  </div>
+                </>
+              ) : exercise.skill_type?.toLowerCase() === 'speaking' ? (
+                <>
+                  <div className="text-center p-4 bg-purple-50 dark:bg-purple-950 rounded-lg">
+                    <p className="text-xs text-muted-foreground mb-2">{t('speaking_duration')}</p>
+                    <p className="text-2xl font-bold text-purple-600">
+                      {submission.audio_duration_seconds 
+                        ? `${Math.floor(submission.audio_duration_seconds / 60)}:${String(submission.audio_duration_seconds % 60).padStart(2, '0')}`
+                        : 'N/A'}
+                    </p>
+                  </div>
+                  <div className="text-center p-4 bg-orange-50 dark:bg-orange-950 rounded-lg">
+                    <p className="text-xs text-muted-foreground mb-2">{t('evaluation_status')}</p>
+                    <p className="text-sm font-bold text-orange-600">{submission.evaluation_status || 'pending'}</p>
+                  </div>
+                  <div className="text-center p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
+                    <p className="text-xs text-muted-foreground mb-2">{t('time_spent')}</p>
+                    <p className="text-2xl font-bold text-blue-600">
+                      {(() => {
+                        const totalSeconds = performance.time_spent_seconds ?? 0
+                        const minutes = Math.floor(totalSeconds / 60)
+                        const seconds = totalSeconds % 60
+                        if (minutes > 0) {
+                          return `${minutes}m ${seconds}s`
+                        }
+                        return `${seconds}s`
+                      })()}
+                    </p>
+                  </div>
+                  <div className="text-center p-4 bg-green-50 dark:bg-green-950 rounded-lg">
+                    <p className="text-xs text-muted-foreground mb-2">{t('speaking_part')}</p>
+                    <p className="text-2xl font-bold text-green-600">Part {submission.speaking_part_number || exercise.speaking_part_number || 'N/A'}</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="text-center p-4 bg-green-50 dark:bg-green-950 rounded-lg">
+                    <p className="text-xs text-muted-foreground mb-2">{t('correct_answers')}</p>
+                    <p className="text-2xl font-bold text-green-600">{performance.correct_answers ?? 0}</p>
+                  </div>
+                  <div className="text-center p-4 bg-red-50 dark:bg-red-950 rounded-lg">
+                    <p className="text-xs text-muted-foreground mb-2">{t('incorrect_answers')}</p>
+                    <p className="text-2xl font-bold text-red-600">{performance.incorrect_answers ?? 0}</p>
+                  </div>
+                  <div className="text-center p-4 bg-gray-50 dark:bg-gray-950 rounded-lg">
+                    <p className="text-xs text-muted-foreground mb-2">{t('skipped_answers')}</p>
+                    <p className="text-2xl font-bold text-gray-600">{performance.skipped_answers ?? 0}</p>
+                  </div>
+                  <div className="text-center p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
+                    <p className="text-xs text-muted-foreground mb-2">{t('time_spent')}</p>
+                    <p className="text-2xl font-bold text-blue-600">
+                      {(() => {
+                        const totalSeconds = performance.time_spent_seconds ?? 0
+                        const minutes = Math.floor(totalSeconds / 60)
+                        const seconds = totalSeconds % 60
+                        if (minutes > 0) {
+                          return `${minutes}m ${seconds}s`
+                        }
+                        return `${seconds}s`
+                      })()}
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
             
             {/* Band Score Display for Listening/Reading exercises */}

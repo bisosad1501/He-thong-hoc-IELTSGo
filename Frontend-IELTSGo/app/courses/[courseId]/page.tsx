@@ -42,54 +42,72 @@ export default function CourseDetailPage() {
   const [lessonProgressMap, setLessonProgressMap] = useState<Record<string, LessonProgress>>({})
   const [reviewRefreshTrigger, setReviewRefreshTrigger] = useState(0)
 
-  useEffect(() => {
-    const fetchCourseData = async () => {
-      try {
-        setLoading(true)
-        const courseDetail = await coursesApi.getCourseById(params.courseId as string)
-        
-        // Backend returns { course, modules, is_enrolled, enrollment_details }
-        setCourse(courseDetail.course)
-        setIsEnrolled(courseDetail.is_enrolled || false)
-        
-        // Use modules from backend response
-        // UPDATED: Include exercises array from API
-        if (courseDetail.modules && Array.isArray(courseDetail.modules)) {
-          const formattedModules = courseDetail.modules.map((moduleData) => ({
-            ...moduleData.module,
-            lessons: moduleData.lessons || [],
-            exercises: moduleData.exercises || []  // NEW: Include exercises
-          }))
-          setModules(formattedModules)
-        }
+  // Memoize fetchCourseData so it can be used in event listener
+  const fetchCourseData = useCallback(async () => {
+    try {
+      setLoading(true)
+      const courseDetail = await coursesApi.getCourseById(params.courseId as string)
+      
+      // Backend returns { course, modules, is_enrolled, enrollment_details }
+      setCourse(courseDetail.course)
+      setIsEnrolled(courseDetail.is_enrolled || false)
+      
+      // Use modules from backend response
+      // UPDATED: Include exercises array from API
+      if (courseDetail.modules && Array.isArray(courseDetail.modules)) {
+        const formattedModules = courseDetail.modules.map((moduleData) => ({
+          ...moduleData.module,
+          lessons: moduleData.lessons || [],
+          exercises: moduleData.exercises || []  // NEW: Include exercises
+        }))
+        setModules(formattedModules)
+      }
 
-        // ✅ Fetch lesson progress if enrolled
-        if (courseDetail.is_enrolled && user) {
-          try {
-            // Use the correct endpoint: GET /courses/:id/progress
-            const response = await coursesApi.getCourseProgressByCourseId(params.courseId as string)
-            const progressMap: Record<string, LessonProgress> = {}
-            
-            // Backend returns { lessons: LessonProgress[] }
-            if (response?.lessons && Array.isArray(response.lessons)) {
-              response.lessons.forEach((p: LessonProgress) => {
-                progressMap[p.lesson_id] = p
-              })
-              setLessonProgressMap(progressMap)
-            }
-          } catch (error) {
-            // Silent fail - no progress yet
+      // ✅ Fetch lesson progress if enrolled
+      if (courseDetail.is_enrolled && user) {
+        try {
+          // Use the correct endpoint: GET /courses/:id/progress
+          const response = await coursesApi.getCourseProgressByCourseId(params.courseId as string)
+          const progressMap: Record<string, LessonProgress> = {}
+          
+          // Backend returns { lessons: LessonProgress[] }
+          if (response?.lessons && Array.isArray(response.lessons)) {
+            response.lessons.forEach((p: LessonProgress) => {
+              progressMap[p.lesson_id] = p
+            })
+            setLessonProgressMap(progressMap)
           }
+        } catch (error) {
+          // Silent fail - no progress yet
         }
-      } catch (error) {
-        // Error handled by UI
-      } finally {
-        setLoading(false)
+      }
+    } catch (error) {
+      // Error handled by UI
+    } finally {
+      setLoading(false)
+    }
+  }, [params.courseId, user])
+
+  useEffect(() => {
+    fetchCourseData()
+  }, [fetchCourseData])
+
+  // ✅ Listen for lesson progress updates to refresh course progress
+  useEffect(() => {
+    const handleProgressUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent
+      const { courseId } = customEvent.detail || {}
+      
+      // Only refetch if the event is for this course
+      if (courseId === params.courseId) {
+        console.log('[Course Detail] Lesson progress updated - refetching course data')
+        fetchCourseData()
       }
     }
 
-    fetchCourseData()
-  }, [params.courseId, user])
+    window.addEventListener('lessonProgressUpdated', handleProgressUpdate)
+    return () => window.removeEventListener('lessonProgressUpdated', handleProgressUpdate)
+  }, [params.courseId, fetchCourseData])
 
   const handleEnroll = useCallback(async () => {
     if (!user) {

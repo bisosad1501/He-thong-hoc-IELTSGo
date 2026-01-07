@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/bisosad1501/DATN/shared/pkg/client"
+	localclient "github.com/bisosad1501/ielts-platform/course-service/internal/client"
 	"github.com/bisosad1501/ielts-platform/course-service/internal/models"
 	"github.com/bisosad1501/ielts-platform/course-service/internal/repository"
 	"github.com/google/uuid"
@@ -15,15 +16,20 @@ import (
 type CourseService struct {
 	repo               *repository.CourseRepository
 	userServiceClient  *client.UserServiceClient
+	localUserClient    *localclient.UserServiceClient // For session tracking
 	notificationClient *client.NotificationServiceClient
 	exerciseClient     *client.ExerciseServiceClient
 	youtubeService     *YouTubeService
 }
 
-func NewCourseService(repo *repository.CourseRepository, userServiceClient *client.UserServiceClient, notificationClient *client.NotificationServiceClient, exerciseClient *client.ExerciseServiceClient, youtubeService *YouTubeService) *CourseService {
+func NewCourseService(repo *repository.CourseRepository, userServiceClient *client.UserServiceClient, notificationClient *client.NotificationServiceClient, exerciseClient *client.ExerciseServiceClient, youtubeService *YouTubeService, internalKey string, userServiceURL string) *CourseService {
+	// Initialize local user service client for session tracking
+	localUserClient := localclient.NewUserServiceClient(userServiceURL, internalKey)
+
 	return &CourseService{
 		repo:               repo,
 		userServiceClient:  userServiceClient,
+		localUserClient:    localUserClient,
 		notificationClient: notificationClient,
 		exerciseClient:     exerciseClient,
 		youtubeService:     youtubeService,
@@ -63,7 +69,7 @@ func (s *CourseService) GetCourseDetail(courseID uuid.UUID, userID *uuid.UUID) (
 	// Get lessons and exercises for each module
 	var modulesWithLessons []models.ModuleWithLessons
 	var courseLevelExercises []models.ExerciseSummary // Store course-level exercises separately
-	
+
 	// First, get course-level exercises once (only if course has modules)
 	if len(modules) > 0 && s.exerciseClient != nil {
 		courseLevelExercisesList, err := s.exerciseClient.GetExercisesByCourseIDWithFilter(modules[0].CourseID.String(), true)
@@ -89,7 +95,7 @@ func (s *CourseService) GetCourseDetail(courseID uuid.UUID, userID *uuid.UUID) (
 			}
 		}
 	}
-	
+
 	for _, module := range modules {
 		// Get lessons
 		lessons, err := s.repo.GetLessonsByModuleID(module.ID)
@@ -275,7 +281,7 @@ func (s *CourseService) EnrollCourse(userID uuid.UUID, req *models.EnrollmentReq
 				log.Printf("[Course-Service] PANIC in enrollment notification: %v", r)
 			}
 		}()
-		
+
 		log.Printf("[Course-Service] Sending enrollment notification for user %s, course %s", userID, course.ID)
 		actionType := "navigate_to_course"
 		err := s.notificationClient.SendNotification(client.SendNotificationRequest{
@@ -398,12 +404,12 @@ func (s *CourseService) UpdateLessonProgress(userID, lessonID uuid.UUID, req *mo
 	if req.VideoWatchedSeconds != nil {
 		if *req.VideoWatchedSeconds > currentWatchedSeconds {
 			progress.VideoWatchedSeconds = *req.VideoWatchedSeconds
-			log.Printf("[Course-Service] ✅ Updated video_watched_seconds: %d -> %d", 
+			log.Printf("[Course-Service] ✅ Updated video_watched_seconds: %d -> %d",
 				currentWatchedSeconds, *req.VideoWatchedSeconds)
 		} else {
 			// Keep existing value
 			progress.VideoWatchedSeconds = currentWatchedSeconds
-			log.Printf("[Course-Service] ⏭️  Skipped video_watched_seconds update: new=%d <= current=%d", 
+			log.Printf("[Course-Service] ⏭️  Skipped video_watched_seconds update: new=%d <= current=%d",
 				*req.VideoWatchedSeconds, currentWatchedSeconds)
 		}
 	} else {
@@ -464,7 +470,7 @@ func (s *CourseService) UpdateLessonProgress(userID, lessonID uuid.UUID, req *mo
 		// Auto-calculate: Progress = last_position / total_duration * 100
 		if progress.VideoTotalSeconds != nil && *progress.VideoTotalSeconds > 0 {
 			progress.ProgressPercentage = float64(progress.LastPositionSeconds) / float64(*progress.VideoTotalSeconds) * 100
-			log.Printf("[Course-Service] 📊 Auto-calculated progress: %.2f%% (position: %ds / %ds)", 
+			log.Printf("[Course-Service] 📊 Auto-calculated progress: %.2f%% (position: %ds / %ds)",
 				progress.ProgressPercentage, progress.LastPositionSeconds, *progress.VideoTotalSeconds)
 		} else {
 			// Keep existing value if no video data
@@ -508,6 +514,64 @@ func (s *CourseService) UpdateLessonProgress(userID, lessonID uuid.UUID, req *mo
 	err = s.repo.UpdateLessonProgress(progress)
 	if err != nil {
 		return nil, fmt.Errorf("failed to upsert progress: %w", err)
+	}
+
+	// ✅ Track video watching time as study session
+	// Track session when last_position changes (video is playing)
+	// This works even when user replays video from start
+	if req.LastPositionSeconds != nil {
+		currentPosition := 0
+		if existingProgress != nil {
+			currentPosition = existingProgress.LastPositionSeconds
+		}
+
+		log.Printf("[Course-Service] 🔍 Session tracking: req.LastPos=%d, currentPos=%d, existingProgress=%v",
+			*req.LastPositionSeconds, currentPosition, existingProgress != nil)
+
+		// Calculate how much time passed since last update (5 seconds typically)
+		// Only track if position is moving forward
+		if *req.LastPositionSeconds > currentPosition {
+			positionDiff := *req.LastPositionSeconds - currentPosition
+
+			// Create session for EVERY update, even if < 60s
+			// Count each 5s chunk as 1 minute minimum to track all watching time
+			durationMinutes := positionDiff / 60
+			if durationMinutes == 0 && positionDiff > 0 {
+				durationMinutes = 1 // Track even small durations
+			}
+
+			log.Printf("[Course-Service] 🔍 Calculated: positionDiff=%d, durationMinutes=%d", positionDiff, durationMinutes)
+
+			if durationMinutes > 0 {
+				// Get course to get skill_type
+				course, courseErr := s.repo.GetCourseByID(lesson.CourseID)
+				if courseErr == nil && course != nil {
+					// Create study session for this watching segment
+					go func() {
+						defer func() {
+							if r := recover(); r != nil {
+								log.Printf("[Course-Service] PANIC in createVideoStudySession: %v", r)
+							}
+						}()
+
+						sessionReq := &localclient.StartSessionRequest{
+							UserID:       userID.String(),
+							SessionType:  "lesson",
+							SkillType:    course.SkillType,
+							ResourceID:   lessonID.String(),
+							ResourceType: "video_lesson",
+						}
+
+						if err := s.localUserClient.StartSession(sessionReq); err != nil {
+							log.Printf("[Course-Service] ⚠️  Failed to create video study session: %v", err)
+						} else {
+							log.Printf("[Course-Service] 📹 Created study session for %d minutes of video watching (position: %ds → %ds)",
+								durationMinutes, currentPosition, *req.LastPositionSeconds)
+						}
+					}()
+				}
+			}
+		}
 	}
 
 	// Handle lesson completion
@@ -602,11 +666,11 @@ func (s *CourseService) GetLessonProgressByID(userID, lessonID uuid.UUID) (*mode
 	if err != nil {
 		return nil, fmt.Errorf("failed to get lesson progress: %w", err)
 	}
-	
+
 	// ℹ️ No resume position sanitization needed with production logic
 	// Progress = last_position → User sees 65%, resumes at 65% → CONSISTENT!
 	// Old logic would reset skip-ahead, causing mismatch between progress display and resume position.
-	
+
 	return progress, nil
 }
 
@@ -869,7 +933,7 @@ func (s *CourseService) CreateLesson(userID uuid.UUID, userRole string, req *mod
 				ActionType: &actionType,
 				ActionData: map[string]interface{}{
 					"course_id": courseID.String(),
-					"lesson_id":  lesson.ID.String(),
+					"lesson_id": lesson.ID.String(),
 				},
 				Priority: "normal",
 			})
@@ -943,8 +1007,8 @@ func (s *CourseService) CreateReview(userID, courseID uuid.UUID, req *models.Cre
 		Rating:     req.Rating,
 		Title:      req.Title,
 		Comment:    req.Comment,
-		IsApproved: true,        // Auto-approve (instant publish like Udemy/Coursera)
-		ApprovedAt: &now,        // Set approval timestamp
+		IsApproved: true, // Auto-approve (instant publish like Udemy/Coursera)
+		ApprovedAt: &now, // Set approval timestamp
 	}
 
 	err = s.repo.CreateReview(review)

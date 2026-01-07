@@ -551,8 +551,8 @@
                   "    pm.expect(jsonData.success).to.be.true;",
                   "    pm.expect(jsonData.message).to.include('sent');",
                   "    ",
-                  "    console.log('\u26a0\ufe0f  Check email for 6-digit reset code (expires in 15 minutes)');",
-                  "    console.log('\u26a0\ufe0f  Use the code in \"Reset Password By Code\" request');",
+                  "    console.log('⚠️  Check email for 6-digit reset code (expires in 15 minutes)');",
+                  "    console.log('⚠️  Use the code in \"Reset Password By Code\" request');",
                   "});"
                 ]
               }
@@ -617,7 +617,7 @@
                   "    pm.environment.set('test_student_password', 'NewReset@1234');",
                   "    ",
                   "    console.log('Password reset successful');",
-                  "    console.log('\u26a0\ufe0f  All refresh tokens have been revoked for security');",
+                  "    console.log('⚠️  All refresh tokens have been revoked for security');",
                   "});"
                 ]
               }
@@ -846,8 +846,8 @@
                   "    pm.expect(jsonData.success).to.be.true;",
                   "    pm.expect(jsonData.message).to.include('sent');",
                   "    ",
-                  "    console.log('\u26a0\ufe0f  Check email for new 6-digit verification code (expires in 24 hours)');",
-                  "    console.log('\u26a0\ufe0f  Use the code in \"Verify Email By Code\" request');",
+                  "    console.log('⚠️  Check email for new 6-digit verification code (expires in 24 hours)');",
+                  "    console.log('⚠️  Use the code in \"Verify Email By Code\" request');",
                   "});"
                 ]
               }
@@ -920,7 +920,7 @@
                   "    ",
                   "    console.log('Google OAuth URL:', jsonData.data.url);",
                   "    console.log('State:', jsonData.data.state);",
-                  "    console.log('\u26a0\ufe0f  Open this URL in a browser to complete OAuth flow');",
+                  "    console.log('⚠️  Open this URL in a browser to complete OAuth flow');",
                   "});",
                   "",
                   "pm.test('Response time is less than 2000ms', function() {",
@@ -1022,7 +1022,7 @@
                 }
               ]
             },
-            "description": "Handles the OAuth callback from Google. This endpoint:\n1. Validates the state parameter for CSRF protection\n2. Exchanges the authorization code for an access token\n3. Fetches user info from Google\n4. Creates or links the user account\n5. Generates JWT tokens for the application\n\n\u26a0\ufe0f Manual Testing Required:\n1. Call 'Initiate Google OAuth' endpoint\n2. Copy the auth_url from the response\n3. Open the URL in a browser\n4. Authorize with Google\n5. After redirect, copy the 'code' and 'state' parameters from the URL\n6. Paste them into this request and execute\n\n\ud83d\udd04 Account Linking:\nIf an account with the same email already exists, it will be linked to the Google account automatically."
+            "description": "Handles the OAuth callback from Google. This endpoint:\n1. Validates the state parameter for CSRF protection\n2. Exchanges the authorization code for an access token\n3. Fetches user info from Google\n4. Creates or links the user account\n5. Generates JWT tokens for the application\n\n⚠️ Manual Testing Required:\n1. Call 'Initiate Google OAuth' endpoint\n2. Copy the auth_url from the response\n3. Open the URL in a browser\n4. Authorize with Google\n5. After redirect, copy the 'code' and 'state' parameters from the URL\n6. Paste them into this request and execute\n\n🔄 Account Linking:\nIf an account with the same email already exists, it will be linked to the Google account automatically."
           }
         },
         {
@@ -1081,7 +1081,7 @@
                 "token"
               ]
             },
-            "description": "\ud83d\udcf1 Mobile/API OAuth Flow - Exchange authorization code for tokens.\n\nThis endpoint is designed for Mobile Apps, Desktop Apps, and SPAs that cannot use browser redirects.\n\n\ud83d\udd04 Flow:\n1. Call GET /api/v1/auth/google/url to get OAuth URL\n2. Open URL in WebView/Browser (user logs in with Google)\n3. Capture the redirect URL with 'code' parameter\n4. Send code to this endpoint\n5. Receive JWT tokens\n\n\u26a0\ufe0f Important:\n- OAuth codes expire in 5-10 minutes\n- Each code can only be used once\n- State parameter is optional but recommended for CSRF protection\n\n\u2705 Use Cases:\n- iOS/Android mobile apps\n- Desktop applications\n- Single Page Applications (SPA)\n- API-only clients\n\n\ud83d\udca1 Example Mobile Implementation:\n```swift\n// iOS\nlet code = extractCodeFromURL(url)\nAPIClient.exchangeGoogleToken(code: code) { result in\n    // Save tokens to Keychain\n}\n```\n\n```kotlin\n// Android\nval code = uri.getQueryParameter(\"code\")\napiClient.exchangeGoogleToken(code) { tokens ->\n    // Save to SharedPreferences (encrypted)\n}\n```"
+            "description": "📱 Mobile/API OAuth Flow - Exchange authorization code for tokens.\n\nThis endpoint is designed for Mobile Apps, Desktop Apps, and SPAs that cannot use browser redirects.\n\n🔄 Flow:\n1. Call GET /api/v1/auth/google/url to get OAuth URL\n2. Open URL in WebView/Browser (user logs in with Google)\n3. Capture the redirect URL with 'code' parameter\n4. Send code to this endpoint\n5. Receive JWT tokens\n\n⚠️ Important:\n- OAuth codes expire in 5-10 minutes\n- Each code can only be used once\n- State parameter is optional but recommended for CSRF protection\n\n✅ Use Cases:\n- iOS/Android mobile apps\n- Desktop applications\n- Single Page Applications (SPA)\n- API-only clients\n\n💡 Example Mobile Implementation:\n```swift\n// iOS\nlet code = extractCodeFromURL(url)\nAPIClient.exchangeGoogleToken(code: code) { result in\n    // Save tokens to Keychain\n}\n```\n\n```kotlin\n// Android\nval code = uri.getQueryParameter(\"code\")\napiClient.exchangeGoogleToken(code) { tokens ->\n    // Save to SharedPreferences (encrypted)\n}\n```"
           }
         }
       ]
@@ -1987,14 +1987,14 @@
                   "        pm.expect(p).to.have.property('limit');",
                   "        pm.expect(p).to.have.property('total');",
                   "        pm.expect(p).to.have.property('total_pages');",
-                  "        console.log('\u2713 Pagination:', JSON.stringify(p));",
+                  "        console.log('✓ Pagination:', JSON.stringify(p));",
                   "    }",
                   "    // Check for flat pagination (exercises - old format)",
                   "    else if (response.data && response.data.page) {",
                   "        pm.expect(response.data).to.have.property('page');",
                   "        pm.expect(response.data).to.have.property('limit');",
                   "        pm.expect(response.data).to.have.property('total');",
-                  "        console.log('\u2713 Page:', response.data.page, 'Total:', response.data.total);",
+                  "        console.log('✓ Page:', response.data.page, 'Total:', response.data.total);",
                   "    }",
                   "});",
                   "pm.test('Status code is 200', function() {",
@@ -2868,14 +2868,14 @@
                       "        pm.expect(p).to.have.property('limit');",
                       "        pm.expect(p).to.have.property('total');",
                       "        pm.expect(p).to.have.property('total_pages');",
-                      "        console.log('\u2713 Pagination:', JSON.stringify(p));",
+                      "        console.log('✓ Pagination:', JSON.stringify(p));",
                       "    }",
                       "    // Check for flat pagination (exercises - old format)",
                       "    else if (response.data && response.data.page) {",
                       "        pm.expect(response.data).to.have.property('page');",
                       "        pm.expect(response.data).to.have.property('limit');",
                       "        pm.expect(response.data).to.have.property('total');",
-                      "        console.log('\u2713 Page:', response.data.page, 'Total:', response.data.total);",
+                      "        console.log('✓ Page:', response.data.page, 'Total:', response.data.total);",
                       "    }",
                       "});"
                     ]
@@ -2961,7 +2961,7 @@
                       "    // Auto-save user_id for use in other requests",
                       "    if (jsonData.data.user_id) {",
                       "        pm.environment.set('public_user_id', jsonData.data.user_id);",
-                      "        console.log('\u2713 Saved public_user_id:', jsonData.data.user_id);",
+                      "        console.log('✓ Saved public_user_id:', jsonData.data.user_id);",
                       "    }",
                       "    ",
                       "    console.log('Profile data:', {",
@@ -3072,7 +3072,7 @@
                       "const targetUserId = pm.environment.get('public_user_id');",
                       "",
                       "if (currentUserId && targetUserId && currentUserId === targetUserId) {",
-                      "    console.warn('\u26a0\ufe0f Warning: Cannot follow yourself. This will return 400.');",
+                      "    console.warn('⚠️ Warning: Cannot follow yourself. This will return 400.');",
                       "}"
                     ]
                   }
@@ -3090,7 +3090,7 @@
                       "    pm.expect(jsonData.success).to.be.true;",
                       "    pm.expect(jsonData.message).to.include('followed');",
                       "    ",
-                      "    console.log('\u2713 Follow response:', jsonData.message);",
+                      "    console.log('✓ Follow response:', jsonData.message);",
                       "});",
                       "",
                       "// Handle edge case: self-follow attempt",
@@ -3098,7 +3098,7 @@
                       "    pm.test('Self-follow correctly rejected', function() {",
                       "        const jsonData = pm.response.json();",
                       "        pm.expect(jsonData.error.code).to.equal('CANNOT_FOLLOW_SELF');",
-                      "        console.log('\u2713 Correctly rejected self-follow');",
+                      "        console.log('✓ Correctly rejected self-follow');",
                       "    });",
                       "}"
                     ]
@@ -3150,13 +3150,13 @@
                       "        const jsonData = pm.response.json();",
                       "        pm.expect(jsonData.success).to.be.true;",
                       "        pm.expect(jsonData.message).to.include('unfollowed');",
-                      "        console.log('\u2713 Unfollow response:', jsonData.message);",
+                      "        console.log('✓ Unfollow response:', jsonData.message);",
                       "    });",
                       "} else if (pm.response.code === 404) {",
                       "    pm.test('Unfollow when not following (404)', function() {",
                       "        const jsonData = pm.response.json();",
                       "        pm.expect(jsonData.error.code).to.equal('NOT_FOLLOWING');",
-                      "        console.log('\u2713 Correctly returns 404 when not following');",
+                      "        console.log('✓ Correctly returns 404 when not following');",
                       "    });",
                       "} else {",
                       "    pm.test('Unexpected status code', function() {",
@@ -3218,14 +3218,14 @@
                       "        pm.expect(p).to.have.property('limit');",
                       "        pm.expect(p).to.have.property('total');",
                       "        pm.expect(p).to.have.property('total_pages');",
-                      "        console.log('\u2713 Pagination:', JSON.stringify(p));",
+                      "        console.log('✓ Pagination:', JSON.stringify(p));",
                       "    }",
                       "    // Check for flat pagination (exercises - old format)",
                       "    else if (response.data && response.data.page) {",
                       "        pm.expect(response.data).to.have.property('page');",
                       "        pm.expect(response.data).to.have.property('limit');",
                       "        pm.expect(response.data).to.have.property('total');",
-                      "        console.log('\u2713 Page:', response.data.page, 'Total:', response.data.total);",
+                      "        console.log('✓ Page:', response.data.page, 'Total:', response.data.total);",
                       "    }",
                       "});",
                       "pm.test('Status code is 200', function() {",
@@ -3255,8 +3255,8 @@
                       "        pm.expect(follower).to.have.property('followed_at');",
                       "    }",
                       "    ",
-                      "    console.log('\u2713 Total followers:', jsonData.data.pagination.total);",
-                      "    console.log('\u2713 Page:', jsonData.data.pagination.page, '/', jsonData.data.pagination.total_pages);",
+                      "    console.log('✓ Total followers:', jsonData.data.pagination.total);",
+                      "    console.log('✓ Page:', jsonData.data.pagination.page, '/', jsonData.data.pagination.total_pages);",
                       "});"
                     ]
                   }
@@ -3326,14 +3326,14 @@
                       "        pm.expect(p).to.have.property('limit');",
                       "        pm.expect(p).to.have.property('total');",
                       "        pm.expect(p).to.have.property('total_pages');",
-                      "        console.log('\u2713 Pagination:', JSON.stringify(p));",
+                      "        console.log('✓ Pagination:', JSON.stringify(p));",
                       "    }",
                       "    // Check for flat pagination (exercises - old format)",
                       "    else if (response.data && response.data.page) {",
                       "        pm.expect(response.data).to.have.property('page');",
                       "        pm.expect(response.data).to.have.property('limit');",
                       "        pm.expect(response.data).to.have.property('total');",
-                      "        console.log('\u2713 Page:', response.data.page, 'Total:', response.data.total);",
+                      "        console.log('✓ Page:', response.data.page, 'Total:', response.data.total);",
                       "    }",
                       "});",
                       "pm.test('Status code is 200', function() {",
@@ -3363,8 +3363,8 @@
                       "        pm.expect(following).to.have.property('followed_at');",
                       "    }",
                       "    ",
-                      "    console.log('\u2713 Total following:', jsonData.data.pagination.total);",
-                      "    console.log('\u2713 Page:', jsonData.data.pagination.page, '/', jsonData.data.pagination.total_pages);",
+                      "    console.log('✓ Total following:', jsonData.data.pagination.total);",
+                      "    console.log('✓ Page:', jsonData.data.pagination.page, '/', jsonData.data.pagination.total_pages);",
                       "});"
                     ]
                   }
@@ -3507,14 +3507,14 @@
                           "        pm.expect(p).to.have.property('limit');",
                           "        pm.expect(p).to.have.property('total');",
                           "        pm.expect(p).to.have.property('total_pages');",
-                          "        console.log('\u2713 Pagination:', JSON.stringify(p));",
+                          "        console.log('✓ Pagination:', JSON.stringify(p));",
                           "    }",
                           "    // Check for flat pagination (exercises - old format)",
                           "    else if (response.data && response.data.page) {",
                           "        pm.expect(response.data).to.have.property('page');",
                           "        pm.expect(response.data).to.have.property('limit');",
                           "        pm.expect(response.data).to.have.property('total');",
-                          "        console.log('\u2713 Page:', response.data.page, 'Total:', response.data.total);",
+                          "        console.log('✓ Page:', response.data.page, 'Total:', response.data.total);",
                           "    }",
                           "});"
                         ]
@@ -3569,14 +3569,14 @@
                           "        pm.expect(p).to.have.property('limit');",
                           "        pm.expect(p).to.have.property('total');",
                           "        pm.expect(p).to.have.property('total_pages');",
-                          "        console.log('\u2713 Pagination:', JSON.stringify(p));",
+                          "        console.log('✓ Pagination:', JSON.stringify(p));",
                           "    }",
                           "    // Check for flat pagination (exercises - old format)",
                           "    else if (response.data && response.data.page) {",
                           "        pm.expect(response.data).to.have.property('page');",
                           "        pm.expect(response.data).to.have.property('limit');",
                           "        pm.expect(response.data).to.have.property('total');",
-                          "        console.log('\u2713 Page:', response.data.page, 'Total:', response.data.total);",
+                          "        console.log('✓ Page:', response.data.page, 'Total:', response.data.total);",
                           "    }",
                           "});"
                         ]
@@ -3599,7 +3599,7 @@
                           "pm.test('Follow successful', function() {",
                           "    pm.expect(pm.response.code).to.equal(200);",
                           "    pm.expect(pm.response.json().success).to.be.true;",
-                          "    console.log('\u2713 Followed user successfully');",
+                          "    console.log('✓ Followed user successfully');",
                           "});"
                         ]
                       }
@@ -3647,14 +3647,14 @@
                           "        pm.expect(p).to.have.property('limit');",
                           "        pm.expect(p).to.have.property('total');",
                           "        pm.expect(p).to.have.property('total_pages');",
-                          "        console.log('\u2713 Pagination:', JSON.stringify(p));",
+                          "        console.log('✓ Pagination:', JSON.stringify(p));",
                           "    }",
                           "    // Check for flat pagination (exercises - old format)",
                           "    else if (response.data && response.data.page) {",
                           "        pm.expect(response.data).to.have.property('page');",
                           "        pm.expect(response.data).to.have.property('limit');",
                           "        pm.expect(response.data).to.have.property('total');",
-                          "        console.log('\u2713 Page:', response.data.page, 'Total:', response.data.total);",
+                          "        console.log('✓ Page:', response.data.page, 'Total:', response.data.total);",
                           "    }",
                           "});",
                           "pm.test('Followers list updated', function() {",
@@ -3668,7 +3668,7 @@
                           "    const hasCurrentUser = data.followers.some(f => f.user_id === currentUserId);",
                           "    pm.expect(hasCurrentUser).to.be.true;",
                           "    ",
-                          "    console.log('\u2713 Current user found in followers list');",
+                          "    console.log('✓ Current user found in followers list');",
                           "});"
                         ]
                       }
@@ -3721,14 +3721,14 @@
                           "        pm.expect(p).to.have.property('limit');",
                           "        pm.expect(p).to.have.property('total');",
                           "        pm.expect(p).to.have.property('total_pages');",
-                          "        console.log('\u2713 Pagination:', JSON.stringify(p));",
+                          "        console.log('✓ Pagination:', JSON.stringify(p));",
                           "    }",
                           "    // Check for flat pagination (exercises - old format)",
                           "    else if (response.data && response.data.page) {",
                           "        pm.expect(response.data).to.have.property('page');",
                           "        pm.expect(response.data).to.have.property('limit');",
                           "        pm.expect(response.data).to.have.property('total');",
-                          "        console.log('\u2713 Page:', response.data.page, 'Total:', response.data.total);",
+                          "        console.log('✓ Page:', response.data.page, 'Total:', response.data.total);",
                           "    }",
                           "});",
                           "pm.test('Following list updated', function() {",
@@ -3742,7 +3742,7 @@
                           "    const hasTargetUser = data.following.some(f => f.user_id === targetUserId);",
                           "    pm.expect(hasTargetUser).to.be.true;",
                           "    ",
-                          "    console.log('\u2713 Target user found in following list');",
+                          "    console.log('✓ Target user found in following list');",
                           "});"
                         ]
                       }
@@ -3790,8 +3790,8 @@
                           "    pm.expect(data.isFollowing).to.be.true;",
                           "    pm.expect(data.followersCount).to.be.at.least(1);",
                           "    ",
-                          "    console.log('\u2713 isFollowing =', data.isFollowing);",
-                          "    console.log('\u2713 followersCount =', data.followersCount);",
+                          "    console.log('✓ isFollowing =', data.isFollowing);",
+                          "    console.log('✓ followersCount =', data.followersCount);",
                           "});"
                         ]
                       }
@@ -3835,7 +3835,7 @@
                           "pm.test('Unfollow successful', function() {",
                           "    pm.expect(pm.response.code).to.equal(200);",
                           "    pm.expect(pm.response.json().success).to.be.true;",
-                          "    console.log('\u2713 Unfollowed user successfully');",
+                          "    console.log('✓ Unfollowed user successfully');",
                           "});"
                         ]
                       }
@@ -3883,14 +3883,14 @@
                           "        pm.expect(p).to.have.property('limit');",
                           "        pm.expect(p).to.have.property('total');",
                           "        pm.expect(p).to.have.property('total_pages');",
-                          "        console.log('\u2713 Pagination:', JSON.stringify(p));",
+                          "        console.log('✓ Pagination:', JSON.stringify(p));",
                           "    }",
                           "    // Check for flat pagination (exercises - old format)",
                           "    else if (response.data && response.data.page) {",
                           "        pm.expect(response.data).to.have.property('page');",
                           "        pm.expect(response.data).to.have.property('limit');",
                           "        pm.expect(response.data).to.have.property('total');",
-                          "        console.log('\u2713 Page:', response.data.page, 'Total:', response.data.total);",
+                          "        console.log('✓ Page:', response.data.page, 'Total:', response.data.total);",
                           "    }",
                           "});",
                           "pm.test('Counts reset to zero', function() {",
@@ -3898,7 +3898,7 @@
                           "    const data = pm.response.json().data;",
                           "    ",
                           "    pm.expect(data.pagination.total).to.equal(0);",
-                          "    console.log('\u2713 Followers count reset to', data.pagination.total);",
+                          "    console.log('✓ Followers count reset to', data.pagination.total);",
                           "});"
                         ]
                       }
@@ -3946,8 +3946,8 @@
                           "    pm.expect(data.isFollowing).to.be.false;",
                           "    pm.expect(data.followersCount).to.equal(0);",
                           "    ",
-                          "    console.log('\u2713 isFollowing =', data.isFollowing);",
-                          "    console.log('\u2713 followersCount =', data.followersCount);",
+                          "    console.log('✓ isFollowing =', data.isFollowing);",
+                          "    console.log('✓ followersCount =', data.followersCount);",
                           "});"
                         ]
                       }
@@ -3992,7 +3992,7 @@
                           "    pm.expect(pm.response.code).to.equal(400);",
                           "    const jsonData = pm.response.json();",
                           "    pm.expect(jsonData.error.code).to.equal('CANNOT_FOLLOW_SELF');",
-                          "    console.log('\u2713 Self-follow correctly prevented');",
+                          "    console.log('✓ Self-follow correctly prevented');",
                           "});"
                         ]
                       }
@@ -4032,7 +4032,7 @@
                           "    pm.expect(pm.response.code).to.equal(404);",
                           "    const jsonData = pm.response.json();",
                           "    pm.expect(jsonData.error.code).to.equal('NOT_FOLLOWING');",
-                          "    console.log('\u2713 Correctly returns 404 when not following');",
+                          "    console.log('✓ Correctly returns 404 when not following');",
                           "});"
                         ]
                       }
@@ -4107,7 +4107,7 @@
                               "        if (!err && res.code === 200) {",
                               "            const total = res.json().data.pagination.total;",
                               "            pm.expect(total).to.equal(1);",
-                              "            console.log('\u2713 No duplicate created, total followers:', total);",
+                              "            console.log('✓ No duplicate created, total followers:', total);",
                               "        }",
                               "    });",
                               "});"
@@ -4164,14 +4164,14 @@
                           "        pm.expect(p).to.have.property('limit');",
                           "        pm.expect(p).to.have.property('total');",
                           "        pm.expect(p).to.have.property('total_pages');",
-                          "        console.log('\u2713 Pagination:', JSON.stringify(p));",
+                          "        console.log('✓ Pagination:', JSON.stringify(p));",
                           "    }",
                           "    // Check for flat pagination (exercises - old format)",
                           "    else if (response.data && response.data.page) {",
                           "        pm.expect(response.data).to.have.property('page');",
                           "        pm.expect(response.data).to.have.property('limit');",
                           "        pm.expect(response.data).to.have.property('total');",
-                          "        console.log('\u2713 Page:', response.data.page, 'Total:', response.data.total);",
+                          "        console.log('✓ Page:', response.data.page, 'Total:', response.data.total);",
                           "    }",
                           "});",
                           "pm.test('Pagination parameters correct', function() {",
@@ -4181,9 +4181,9 @@
                           "    pm.expect(data.pagination.page).to.equal(1);",
                           "    pm.expect(data.pagination.page_size).to.equal(5);",
                           "    ",
-                          "    console.log('\u2713 Page:', data.pagination.page);",
-                          "    console.log('\u2713 Page size:', data.pagination.page_size);",
-                          "    console.log('\u2713 Total:', data.pagination.total);",
+                          "    console.log('✓ Page:', data.pagination.page);",
+                          "    console.log('✓ Page size:', data.pagination.page_size);",
+                          "    console.log('✓ Total:', data.pagination.total);",
                           "});"
                         ]
                       }
@@ -4218,115 +4218,6 @@
                   }
                 }
               ]
-            }
-          ]
-        },
-        {
-          "name": "Internal APIs",
-          "item": [
-            {
-              "name": "Record Practice Activity",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  },
-                  {
-                    "key": "X-Internal-API-Key",
-                    "value": "{{internal_api_key}}"
-                  }
-                ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"skill\": \"listening\",\n  \"activity_type\": \"practice\",\n  \"score\": 6.5,\n  \"accuracy_percentage\": 85.5,\n  \"time_spent_seconds\": 1200,\n  \"exercise_id\": \"{{test_exercise_id}}\",\n  \"submission_id\": \"{{test_submission_id}}\",\n  \"completion_status\": \"completed\"\n}"
-                },
-                "url": {
-                  "raw": "{{user_service_url}}/api/v1/user/internal/users/{{user_id}}/practice-activities",
-                  "host": [
-                    "{{user_service_url}}"
-                  ],
-                  "path": [
-                    "api",
-                    "v1",
-                    "user",
-                    "internal",
-                    "users",
-                    "{{user_id}}",
-                    "practice-activities"
-                  ]
-                }
-              }
-            },
-            {
-              "name": "Record Official Test Result",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  },
-                  {
-                    "key": "X-Internal-API-Key",
-                    "value": "{{internal_api_key}}"
-                  }
-                ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"skill\": \"listening\",\n  \"test_type\": \"full_test\",\n  \"band_score\": 7.5,\n  \"test_date\": \"2025-11-07T10:00:00Z\",\n  \"exercise_id\": \"{{test_exercise_id}}\",\n  \"submission_id\": \"{{test_submission_id}}\"\n}"
-                },
-                "url": {
-                  "raw": "{{user_service_url}}/api/v1/user/internal/users/{{user_id}}/test-results",
-                  "host": [
-                    "{{user_service_url}}"
-                  ],
-                  "path": [
-                    "api",
-                    "v1",
-                    "user",
-                    "internal",
-                    "users",
-                    "{{user_id}}",
-                    "test-results"
-                  ]
-                }
-              }
-            },
-            {
-              "name": "Update Progress",
-              "request": {
-                "method": "PUT",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  },
-                  {
-                    "key": "X-Internal-API-Key",
-                    "value": "{{internal_api_key}}"
-                  }
-                ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"user_id\": \"{{user_id}}\",\n  \"updates\": {\n    \"total_exercises_completed\": 1\n  }\n}"
-                },
-                "url": {
-                  "raw": "{{user_service_url}}/api/v1/user/internal/progress/update",
-                  "host": [
-                    "{{user_service_url}}"
-                  ],
-                  "path": [
-                    "api",
-                    "v1",
-                    "user",
-                    "internal",
-                    "progress",
-                    "update"
-                  ]
-                }
-              }
             }
           ]
         }
@@ -4393,14 +4284,14 @@
                       "        pm.expect(p).to.have.property('limit');",
                       "        pm.expect(p).to.have.property('total');",
                       "        pm.expect(p).to.have.property('total_pages');",
-                      "        console.log('\u2713 Pagination:', JSON.stringify(p));",
+                      "        console.log('✓ Pagination:', JSON.stringify(p));",
                       "    }",
                       "    // Check for flat pagination (exercises - old format)",
                       "    else if (response.data && response.data.page) {",
                       "        pm.expect(response.data).to.have.property('page');",
                       "        pm.expect(response.data).to.have.property('limit');",
                       "        pm.expect(response.data).to.have.property('total');",
-                      "        console.log('\u2713 Page:', response.data.page, 'Total:', response.data.total);",
+                      "        console.log('✓ Page:', response.data.page, 'Total:', response.data.total);",
                       "    }",
                       "});",
                       "pm.test('Status code is 200', function() {",
@@ -5556,14 +5447,14 @@
                       "        pm.expect(p).to.have.property('limit');",
                       "        pm.expect(p).to.have.property('total');",
                       "        pm.expect(p).to.have.property('total_pages');",
-                      "        console.log('\u2713 Pagination:', JSON.stringify(p));",
+                      "        console.log('✓ Pagination:', JSON.stringify(p));",
                       "    }",
                       "    // Check for flat pagination (exercises - old format)",
                       "    else if (response.data && response.data.page) {",
                       "        pm.expect(response.data).to.have.property('page');",
                       "        pm.expect(response.data).to.have.property('limit');",
                       "        pm.expect(response.data).to.have.property('total');",
-                      "        console.log('\u2713 Page:', response.data.page, 'Total:', response.data.total);",
+                      "        console.log('✓ Page:', response.data.page, 'Total:', response.data.total);",
                       "    }",
                       "});",
                       "pm.test('Status code is 200', function() {",
@@ -5767,14 +5658,14 @@
                       "        pm.expect(p).to.have.property('limit');",
                       "        pm.expect(p).to.have.property('total');",
                       "        pm.expect(p).to.have.property('total_pages');",
-                      "        console.log('\u2713 Pagination:', JSON.stringify(p));",
+                      "        console.log('✓ Pagination:', JSON.stringify(p));",
                       "    }",
                       "    // Check for flat pagination (exercises - old format)",
                       "    else if (response.data && response.data.page) {",
                       "        pm.expect(response.data).to.have.property('page');",
                       "        pm.expect(response.data).to.have.property('limit');",
                       "        pm.expect(response.data).to.have.property('total');",
-                      "        console.log('\u2713 Page:', response.data.page, 'Total:', response.data.total);",
+                      "        console.log('✓ Page:', response.data.page, 'Total:', response.data.total);",
                       "    }",
                       "});",
                       "pm.test('Status 200', function() { pm.response.to.have.status(200); });",
@@ -5995,7 +5886,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"answers\": [\n    {\n      \"question_id\": \"question-uuid-1\",\n      \"selected_option_id\": \"option-uuid-a\",\n      \"time_spent_seconds\": 0\n    },\n    {\n      \"question_id\": \"question-uuid-2\",\n      \"text_answer\": \"answer text\",\n      \"time_spent_seconds\": 0\n    }\n  ],\n  \"time_spent_seconds\": 120\n}"
+                  "raw": "{\n  \"answers\": [\n    {\n      \"question_id\": \"question-uuid-1\",\n      \"selected_option_id\": \"option-uuid-a\",\n      \"time_spent_seconds\": 45\n    },\n    {\n      \"question_id\": \"question-uuid-2\",\n      \"text_answer\": \"answer text\",\n      \"time_spent_seconds\": 30\n    }\n  ]\n}"
                 },
                 "url": {
                   "raw": "{{exercise_service_url}}/api/v1/submissions/{{test_submission_id}}/answers",
@@ -6014,7 +5905,7 @@
               }
             },
             {
-              "name": "Submit Exercise (Writing/Speaking)",
+              "name": "Complete Submission",
               "event": [
                 {
                   "listen": "test",
@@ -6022,9 +5913,31 @@
                     "type": "text/javascript",
                     "exec": [
                       "pm.test('Status 200', function() { pm.response.to.have.status(200); });",
-                      "pm.test('Exercise submitted', function() {",
+                      "pm.test('Submission completed', function() {",
                       "    const jsonData = pm.response.json();",
                       "    pm.expect(jsonData.success).to.be.true;",
+                      "    const submission = jsonData.data;",
+                      "    ",
+                      "    // Verify submission fields",
+                      "    pm.expect(submission).to.have.property('id');",
+                      "    pm.expect(submission).to.have.property('status');",
+                      "    pm.expect(submission.status).to.equal('completed');",
+                      "    ",
+                      "    // Verify band_score is in range 0-9",
+                      "    if (submission.band_score !== null && submission.band_score !== undefined) {",
+                      "        pm.expect(submission.band_score).to.be.at.least(0);",
+                      "        pm.expect(submission.band_score).to.be.at.most(9);",
+                      "        console.log('Band Score:', submission.band_score);",
+                      "    }",
+                      "    ",
+                      "    // Verify score is percentage (0-100)",
+                      "    if (submission.score !== null && submission.score !== undefined) {",
+                      "        pm.expect(submission.score).to.be.at.least(0);",
+                      "        pm.expect(submission.score).to.be.at.most(100);",
+                      "        console.log('Score (percentage):', submission.score);",
+                      "    }",
+                      "    ",
+                      "    console.log('Submission completed:', submission.id);",
                       "});"
                     ]
                   }
@@ -6040,10 +5953,10 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"writing_data\": {\n    \"essay_text\": \"Sample essay text for testing time tracking...\",\n    \"word_count\": 250,\n    \"task_type\": \"task2\",\n    \"prompt_text\": \"Discuss advantages and disadvantages...\"\n  },\n  \"time_spent_seconds\": 300,\n  \"is_official_test\": false\n}"
+                  "raw": "{\n  \"total_time_spent_seconds\": 1800\n}"
                 },
                 "url": {
-                  "raw": "{{exercise_service_url}}/api/v1/submissions/{{test_submission_id}}/submit",
+                  "raw": "{{exercise_service_url}}/api/v1/submissions/{{test_submission_id}}/complete",
                   "host": [
                     "{{exercise_service_url}}"
                   ],
@@ -6052,10 +5965,10 @@
                     "v1",
                     "submissions",
                     "{{test_submission_id}}",
-                    "submit"
+                    "complete"
                   ]
                 },
-                "description": "Unified submission endpoint for Writing and Speaking exercises. Triggers async AI evaluation. Use writing_data for writing or speaking_data for speaking."
+                "description": "Complete a submission. Calculates final band_score (0-9) using official IELTS conversion tables. For Reading exercises, uses correct conversion table based on ielts_test_type (academic vs general_training). Updates statistics and sends notifications. Response includes: submission with band_score, score (percentage 0-100), correct_answers, total_questions."
               }
             },
             {
@@ -6176,14 +6089,14 @@
                       "        pm.expect(p).to.have.property('limit');",
                       "        pm.expect(p).to.have.property('total');",
                       "        pm.expect(p).to.have.property('total_pages');",
-                      "        console.log('\u2713 Pagination:', JSON.stringify(p));",
+                      "        console.log('✓ Pagination:', JSON.stringify(p));",
                       "    }",
                       "    // Check for flat pagination (exercises - old format)",
                       "    else if (response.data && response.data.page) {",
                       "        pm.expect(response.data).to.have.property('page');",
                       "        pm.expect(response.data).to.have.property('limit');",
                       "        pm.expect(response.data).to.have.property('total');",
-                      "        console.log('\u2713 Page:', response.data.page, 'Total:', response.data.total);",
+                      "        console.log('✓ Page:', response.data.page, 'Total:', response.data.total);",
                       "    }",
                       "});"
                     ]
@@ -6677,14 +6590,14 @@
                       "        pm.expect(p).to.have.property('limit');",
                       "        pm.expect(p).to.have.property('total');",
                       "        pm.expect(p).to.have.property('total_pages');",
-                      "        console.log('\u2713 Pagination:', JSON.stringify(p));",
+                      "        console.log('✓ Pagination:', JSON.stringify(p));",
                       "    }",
                       "    // Check for flat pagination (exercises - old format)",
                       "    else if (response.data && response.data.page) {",
                       "        pm.expect(response.data).to.have.property('page');",
                       "        pm.expect(response.data).to.have.property('limit');",
                       "        pm.expect(response.data).to.have.property('total');",
-                      "        console.log('\u2713 Page:', response.data.page, 'Total:', response.data.total);",
+                      "        console.log('✓ Page:', response.data.page, 'Total:', response.data.total);",
                       "    }",
                       "});"
                     ]
@@ -6964,14 +6877,14 @@
                   "        pm.expect(p).to.have.property('limit');",
                   "        pm.expect(p).to.have.property('total');",
                   "        pm.expect(p).to.have.property('total_pages');",
-                  "        console.log('\u2713 Pagination:', JSON.stringify(p));",
+                  "        console.log('✓ Pagination:', JSON.stringify(p));",
                   "    }",
                   "    // Check for flat pagination (exercises - old format)",
                   "    else if (response.data && response.data.page) {",
                   "        pm.expect(response.data).to.have.property('page');",
                   "        pm.expect(response.data).to.have.property('limit');",
                   "        pm.expect(response.data).to.have.property('total');",
-                  "        console.log('\u2713 Page:', response.data.page, 'Total:', response.data.total);",
+                  "        console.log('✓ Page:', response.data.page, 'Total:', response.data.total);",
                   "    }",
                   "});"
                 ]
@@ -7384,129 +7297,6 @@
         }
       ],
       "description": "Notification Service APIs for managing user notifications, preferences, and device tokens"
-    },
-    {
-      "name": "Storage Service",
-      "item": [
-        {
-          "name": "Health Check",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{storage_service_url}}/health",
-              "host": [
-                "{{storage_service_url}}"
-              ],
-              "path": [
-                "health"
-              ]
-            }
-          }
-        },
-        {
-          "name": "Upload Audio",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                {
-                  "key": "file",
-                  "type": "file",
-                  "src": []
-                },
-                {
-                  "key": "folder",
-                  "value": "speaking",
-                  "type": "text"
-                }
-              ]
-            },
-            "url": {
-              "raw": "{{storage_service_url}}/api/v1/storage/audio/upload",
-              "host": [
-                "{{storage_service_url}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "storage",
-                "audio",
-                "upload"
-              ]
-            },
-            "description": "Upload audio file to MinIO storage. Returns audio_url for use in speaking submissions."
-          }
-        },
-        {
-          "name": "Get Presigned URL",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{storage_service_url}}/api/v1/storage/audio/presigned-url/speaking/test.mp3",
-              "host": [
-                "{{storage_service_url}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "storage",
-                "audio",
-                "presigned-url",
-                "speaking",
-                "test.mp3"
-              ]
-            }
-          }
-        },
-        {
-          "name": "Get Audio Info",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{storage_service_url}}/api/v1/storage/audio/info/speaking/test.mp3",
-              "host": [
-                "{{storage_service_url}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "storage",
-                "audio",
-                "info",
-                "speaking",
-                "test.mp3"
-              ]
-            }
-          }
-        },
-        {
-          "name": "Serve Audio File",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{storage_service_url}}/api/v1/storage/audio/file/speaking/test.mp3",
-              "host": [
-                "{{storage_service_url}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "storage",
-                "audio",
-                "file",
-                "speaking",
-                "test.mp3"
-              ]
-            }
-          }
-        }
-      ]
     },
     {
       "name": "AI Service",

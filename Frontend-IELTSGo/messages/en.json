@@ -1032,7 +1032,8 @@
     "part_of_module": "Part of Module",
     "standalone": "Standalone",
     "mock_test": "Mock Test",
-    "full_test": "Full Test"
+    "full_test": "Full Test",
+    "time_spent": "Time Spent"
   },
   "exercises": {
     "results_not_found": "Results not found",
@@ -1138,6 +1139,16 @@
     "start_exercise": "Start Exercise",
     "preparing": "Preparing...",
     "can_retry_multiple_times": "Can retry multiple times",
+    "essay_based_exercise": "Essay-based exercise (no multiple choice questions)",
+    "essay_submitted": "Essay submitted",
+    "word_count": "Word count",
+    "words_written": "words written",
+    "audio_submitted": "Audio submitted",
+    "speaking_duration": "Duration",
+    "transcript_available": "Transcript available",
+    "evaluation_status": "Evaluation Status",
+    "task_type": "Task Type",
+    "speaking_part": "Speaking Part",
     "question_of": "Question {current} of {total}",
     "answered": "answered",
     "congratulations": "Congratulations! 🎉",
@@ -1304,7 +1315,8 @@
     "start_preparation": "Start Preparation (1 minute)",
     "start_speaking": "Start Speaking",
     "recording": "Recording...",
-    "recording_duration": "Recording Duration"
+    "recording_duration": "Recording Duration",
+    "in_progress": "In Progress"
   },
   "profile": {
     "profile_settings": "Profile Settings",
@@ -1822,6 +1834,7 @@
     "processing": "Processing",
     "pending_evaluation": "Pending Evaluation",
     "evaluation_failed": "Evaluation Failed",
+    "evaluation_failed_description": "The evaluation was unsuccessful. Please try again later or contact support if the issue persists.",
     "please_wait_for_evaluation": "Please wait while we evaluate your writing...",
     "evaluation_not_available": "Evaluation not available",
     "task_achievement": "Task Achievement",

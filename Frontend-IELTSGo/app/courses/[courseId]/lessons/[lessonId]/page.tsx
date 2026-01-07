@@ -153,12 +153,23 @@ export default function LessonPlayerPage() {
       last_position_seconds: data.lastPosition, // ✅ Lưu vị trí để resume
     }
     
-    // Update lesson progress (silent fail - will retry on next update)
+    // Update lesson progress and invalidate cache to trigger refetch
     coursesApi.updateLessonProgress(params.lessonId as string, payload)
+      .then(() => {
+        // ✅ Trigger refetch of enrollment data to update course progress in My Courses
+        // This ensures course progress percentage reflects lesson progress immediately
+        // Use SWR mutate or custom event to refresh enrollment cache
+        if (typeof window !== 'undefined') {
+          // Dispatch custom event to signal My Courses page to refetch
+          window.dispatchEvent(new CustomEvent('lessonProgressUpdated', { 
+            detail: { lessonId: params.lessonId, courseId: params.courseId }
+          }))
+        }
+      })
       .catch(() => {
         // Silent fail - progress will retry on next update
       })
-  }, [params.lessonId, videos])
+  }, [params.lessonId, params.courseId, videos])
 
   // Initialize YouTube player and tracking (only for YouTube videos)
   // Hook MUST be called unconditionally, but with empty videoId it will skip init

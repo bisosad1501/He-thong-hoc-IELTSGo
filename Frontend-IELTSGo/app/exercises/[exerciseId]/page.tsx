@@ -257,7 +257,13 @@ export default function ExerciseDetailPage() {
                 
                 <div className="text-xs text-muted-foreground space-y-1">
                   <p>• {t('time_limit')}: {exercise.time_limit_minutes ? `${exercise.time_limit_minutes} ${t('minutes')}` : t('no_time_limit')}</p>
-                  <p>• {t('number_of_questions')}: {totalQuestions} {t('questions')}</p>
+                  {/* Only show question count for Reading/Listening */}
+                  {(exercise.skill_type?.toLowerCase() === 'reading' || exercise.skill_type?.toLowerCase() === 'listening') && totalQuestions > 0 && (
+                    <p>• {t('number_of_questions')}: {totalQuestions} {t('questions')}</p>
+                  )}
+                  {(exercise.skill_type?.toLowerCase() === 'writing' || exercise.skill_type?.toLowerCase() === 'speaking') && (
+                    <p>• {t('essay_based_exercise')}</p>
+                  )}
                   <p>• {t('can_retry_multiple_times')}</p>
                 </div>
               </CardContent>

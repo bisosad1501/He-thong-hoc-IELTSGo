@@ -1032,7 +1032,8 @@
     "part_of_module": "Thuộc module",
     "standalone": "Độc lập",
     "mock_test": "Đề thi thử",
-    "full_test": "Đề thi đầy đủ"
+    "full_test": "Đề thi đầy đủ",
+    "time_spent": "Thời gian làm"
   },
   "exercises": {
     "results_not_found": "Không tìm thấy kết quả",
@@ -1127,6 +1128,16 @@
     "start_exercise": "Bắt đầu làm bài",
     "preparing": "Đang chuẩn bị...",
     "can_retry_multiple_times": "Có thể làm lại nhiều lần",
+    "essay_based_exercise": "Bài tập viết luận (không có câu hỏi trắc nghiệm)",
+    "essay_submitted": "Bài luận đã nộp",
+    "word_count": "Số từ",
+    "words_written": "từ đã viết",
+    "audio_submitted": "Đã nộp audio",
+    "speaking_duration": "Thời lượng",
+    "transcript_available": "Có transcript",
+    "evaluation_status": "Trạng thái chấm",
+    "task_type": "Loại bài",
+    "speaking_part": "Phần thi",
     "question_of": "Câu hỏi {current} / {total}",
     "answered": "đã trả lời",
     "congratulations": "Chúc mừng! 🎉",
@@ -1302,7 +1313,8 @@
     "start_preparation": "Bắt đầu chuẩn bị (1 phút)",
     "start_speaking": "Bắt đầu nói",
     "recording": "Đang ghi âm...",
-    "recording_duration": "Thời gian ghi âm"
+    "recording_duration": "Thời gian ghi âm",
+    "in_progress": "Đang thực hiện"
   },
   "profile": {
     "profile_settings": "Cài đặt hồ sơ",
@@ -1820,6 +1832,7 @@
     "processing": "Đang xử lý",
     "pending_evaluation": "Chờ đánh giá",
     "evaluation_failed": "Đánh giá thất bại",
+    "evaluation_failed_description": "Đánh giá không thành công. Vui lòng thử lại sau hoặc liên hệ hỗ trợ nếu vấn đề vẫn tiếp diễn.",
     "please_wait_for_evaluation": "Vui lòng đợi trong khi chúng tôi đánh giá bài viết của bạn...",
     "evaluation_not_available": "Đánh giá không có sẵn vào lúc này",
     "task_achievement": "Hoàn thành nhiệm vụ",

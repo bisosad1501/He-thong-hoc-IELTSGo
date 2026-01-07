@@ -165,7 +165,24 @@ sleep 20
 
 echo ""
 echo -e "${BLUE}=========================================${NC}"
-echo -e "${BLUE}STEP 8: VERIFY SERVICES${NC}"
+echo -e "${BLUE}STEP 8: CONFIGURE MINIO STORAGE${NC}"
+echo -e "${BLUE}=========================================${NC}"
+
+echo -e "${YELLOW}Configuring MinIO bucket for audio storage...${NC}"
+echo -e "${CYAN}Setting up MinIO alias...${NC}"
+docker exec ielts_minio mc alias set myminio http://localhost:9000 ielts_admin ielts_minio_password_2025 2>/dev/null || true
+
+echo -e "${CYAN}Creating ielts-audio bucket...${NC}"
+docker exec ielts_minio mc mb myminio/ielts-audio --ignore-existing 2>/dev/null || true
+
+echo -e "${CYAN}Setting bucket policy to allow downloads...${NC}"
+docker exec ielts_minio mc anonymous set download myminio/ielts-audio 2>/dev/null || true
+
+echo -e "${GREEN}✅ MinIO storage configured${NC}"
+
+echo ""
+echo -e "${BLUE}=========================================${NC}"
+echo -e "${BLUE}STEP 9: VERIFY SERVICES${NC}"
 echo -e "${BLUE}=========================================${NC}"
 
 echo -e "${YELLOW}Checking service health...${NC}"

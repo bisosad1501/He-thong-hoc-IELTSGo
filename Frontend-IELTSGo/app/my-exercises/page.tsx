@@ -36,9 +36,9 @@ export default function MyExercisesPage() {
   const [submissions, setSubmissions] = useState<SubmissionWithExercise[]>([])
   const [totalSubmissions, setTotalSubmissions] = useState(0)
   const [loading, setLoading] = useState(true)
-  // Default filter: chỉ hiển thị in_progress (active exercises)
+  // Default filter: chỉ hiển thị in_progress and submitted (active exercises)
   const [filters, setFilters] = useState<SubmissionFilters>({
-    status: ['in_progress']
+    status: ['in_progress', 'submitted']
   })
   const [activeTab, setActiveTab] = useState<string>("in-progress")
 
@@ -83,8 +83,16 @@ export default function MyExercisesPage() {
 
   // Memoize filtered submissions - MUST be before conditional return
   const { completedSubmissions, inProgressSubmissions } = useMemo(() => {
-    const completed = submissions.filter(item => item.submission.status === 'completed')
-    const inProgress = submissions.filter(item => item.submission.status === 'in_progress')
+    const completed = submissions.filter(item => {
+      const sub = item.submission
+      return sub.status === 'completed' || 
+             (sub.status === 'submitted' && sub.evaluation_status === 'completed')
+    })
+    const inProgress = submissions.filter(item => {
+      const sub = item.submission
+      return sub.status === 'in_progress' || 
+             (sub.status === 'submitted' && sub.evaluation_status !== 'completed')
+    })
     return { completedSubmissions: completed, inProgressSubmissions: inProgress }
   }, [submissions])
 
@@ -101,12 +109,28 @@ export default function MyExercisesPage() {
   }, [])
 
   const { averageScore, totalTimeMinutes } = useMemo(() => {
-    const completedWithScore = completedSubmissions.filter(
-      item => item.submission.total_questions > 0
+    // Prioritize band_score for Speaking/Writing
+    const completedWithBandScore = completedSubmissions.filter(
+      item => item.submission.band_score !== undefined && item.submission.band_score !== null
     )
-    const avgScore = completedWithScore.length > 0
-      ? completedWithScore.reduce((sum, item) => sum + calculateScore(item.submission), 0) / completedWithScore.length
-      : 0
+    
+    // Fallback to percentage score for Reading/Listening
+    const completedWithScore = completedSubmissions.filter(
+      item => item.submission.total_questions > 0 && item.submission.score !== undefined
+    )
+    
+    let avgScore = 0
+    if (completedWithBandScore.length > 0) {
+      // Calculate average band score
+      avgScore = completedWithBandScore.reduce(
+        (sum, item) => sum + (item.submission.band_score || 0), 0
+      ) / completedWithBandScore.length
+    } else if (completedWithScore.length > 0) {
+      // Calculate average percentage score
+      avgScore = completedWithScore.reduce(
+        (sum, item) => sum + calculateScore(item.submission), 0
+      ) / completedWithScore.length
+    }
     
     const totalTimeSeconds = submissions.reduce(
       (sum, item) => sum + (item.submission.time_spent_seconds || 0),
@@ -124,8 +148,13 @@ export default function MyExercisesPage() {
     return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`
   }, [])
 
-  const formatScore = useCallback((score?: number) => {
-    if (score === undefined || score === null) return t('not_available')
+  const formatScore = useCallback((score?: number, isBandScore: boolean = false) => {
+    if (score === undefined || score === null || score === 0) return t('not_available')
+    // If score > 10, it's likely a percentage (0-100)
+    // If score <= 10, it's likely a band score (0-9)
+    if (isBandScore || score <= 10) {
+      return score.toFixed(1)
+    }
     return `${score.toFixed(1)}%`
   }, [t])
 
@@ -169,8 +198,8 @@ export default function MyExercisesPage() {
           <SubmissionFiltersComponent 
             filters={filters} 
             onFiltersChange={(newFilters) => {
-              // Always keep status as in_progress for "My Exercises" page
-              setFilters({ ...newFilters, status: ['in_progress'] })
+              // Always keep status as in_progress and submitted for "My Exercises" page
+              setFilters({ ...newFilters, status: ['in_progress', 'submitted'] })
             }}
             hideStatusFilter={true} // Hide status filter in My Exercises page
             // Don't pass onSearch - no search bar for My Exercises
@@ -221,7 +250,9 @@ export default function MyExercisesPage() {
                 <div>
                   <p className="text-sm text-muted-foreground mb-1">{t('average_score')}</p>
                   <p className="text-3xl font-bold">
-                    {completedSubmissions.length > 0 && averageScore > 0 ? formatScore(averageScore) : "N/A"}
+                    {completedSubmissions.length > 0 && averageScore > 0 
+                      ? formatScore(averageScore, averageScore <= 10) 
+                      : "N/A"}
                   </p>
                 </div>
                 <TrendingUp className="h-8 w-8 text-purple-500" />

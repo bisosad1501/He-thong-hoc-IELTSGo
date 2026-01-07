@@ -71,6 +71,7 @@ export default function ExerciseHistoryPage() {
       case "completed":
         return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
       case "in_progress":
+      case "submitted":
         return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
       case "abandoned":
         return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
@@ -163,7 +164,10 @@ export default function ExerciseHistoryPage() {
                 <div>
                   <p className="text-sm text-muted-foreground">{tCommon('completed')}</p>
                   <p className="text-2xl font-bold">
-                    {submissions.filter((s) => s.submission.status === "completed").length}
+                    {submissions.filter((s) => 
+                      s.submission.status === "completed" || 
+                      (s.submission.status === "submitted" && s.submission.evaluation_status === "completed")
+                    ).length}
                   </p>
                 </div>
               </div>
@@ -176,7 +180,10 @@ export default function ExerciseHistoryPage() {
                 <div>
                   <p className="text-sm text-muted-foreground">{tCommon('in_progress')}</p>
                   <p className="text-2xl font-bold">
-                    {submissions.filter((s) => s.submission.status === "in_progress").length}
+                    {submissions.filter((s) => 
+                      s.submission.status === "in_progress" || 
+                      (s.submission.status === "submitted" && s.submission.evaluation_status !== "completed")
+                    ).length}
                   </p>
                 </div>
               </div>
@@ -189,14 +196,35 @@ export default function ExerciseHistoryPage() {
                 <div>
                   <p className="text-sm text-muted-foreground">{t('avg_score')}</p>
                   <p className="text-2xl font-bold">
-                    {submissions.length > 0
-                      ? `${(
-                          submissions
-                            .filter((s) => s.submission.score !== undefined)
-                            .reduce((sum, s) => sum + (s.submission.score || 0), 0) /
-                          submissions.filter((s) => s.submission.score !== undefined).length
-                        ).toFixed(1)}%`
-                      : t('not_available')}
+                    {(() => {
+                      // Calculate average band score for Speaking/Writing
+                      const bandScoreSubmissions = submissions.filter(
+                        (s) => s.submission.band_score !== undefined && s.submission.band_score !== null
+                      )
+                      
+                      if (bandScoreSubmissions.length > 0) {
+                        const avgBandScore = (
+                          bandScoreSubmissions.reduce((sum, s) => sum + (s.submission.band_score || 0), 0) /
+                          bandScoreSubmissions.length
+                        ).toFixed(1)
+                        return avgBandScore
+                      }
+                      
+                      // Calculate average percentage for Reading/Listening
+                      const scoreSubmissions = submissions.filter(
+                        (s) => s.submission.score !== undefined && s.submission.score !== null
+                      )
+                      
+                      if (scoreSubmissions.length > 0) {
+                        const avgScore = (
+                          scoreSubmissions.reduce((sum, s) => sum + (s.submission.score || 0), 0) /
+                          scoreSubmissions.length
+                        ).toFixed(1)
+                        return `${avgScore}%`
+                      }
+                      
+                      return t('not_available')
+                    })()}
                   </p>
                 </div>
               </div>
@@ -304,22 +332,67 @@ export default function ExerciseHistoryPage() {
                           <p className="text-lg font-semibold">#{submission.attempt_number}</p>
                         </div>
 
-                        {/* Performance (combine percentage + correct/total) */}
+                        {/* Performance - Different display based on skill type */}
                         {submission.status === "completed" ? (
                           <div>
-                            <p className="text-sm text-muted-foreground">{t('percentage')}</p>
-                            <p className={`text-2xl font-semibold ${getScoreColor(percentage)}`}>
-                              {percentage.toFixed(1)}%
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {submission.correct_answers}/{submission.total_questions} {t('questions')}
-                            </p>
+                            {/* Reading/Listening: Show percentage */}
+                            {(exercise.skill_type?.toLowerCase() === 'reading' || exercise.skill_type?.toLowerCase() === 'listening') ? (
+                              <>
+                                <p className="text-sm text-muted-foreground">{t('percentage')}</p>
+                                <p className={`text-2xl font-semibold ${getScoreColor(percentage)}`}>
+                                  {percentage.toFixed(1)}%
+                                </p>
+                                {submission.total_questions > 0 && (
+                                  <p className="text-xs text-muted-foreground">
+                                    {submission.correct_answers}/{submission.total_questions} {t('questions')}
+                                  </p>
+                                )}
+                              </>
+                            ) : exercise.skill_type?.toLowerCase() === 'writing' ? (
+                              /* Writing: Show band score if available */
+                              submission.band_score ? (
+                                <>
+                                  <p className="text-sm text-muted-foreground">{t('band_score')}</p>
+                                  <p className="text-2xl font-semibold text-primary">
+                                    {submission.band_score}
+                                  </p>
+                                </>
+                              ) : (
+                                <>
+                                  <p className="text-sm text-muted-foreground">{t('status')}</p>
+                                  <p className="text-lg font-semibold">
+                                    {t('completed')}
+                                  </p>
+                                </>
+                              )
+                            ) : exercise.skill_type?.toLowerCase() === 'speaking' ? (
+                              /* Speaking: Show band score if available */
+                              submission.band_score ? (
+                                <>
+                                  <p className="text-sm text-muted-foreground">{t('band_score')}</p>
+                                  <p className="text-2xl font-semibold text-primary">
+                                    {submission.band_score}
+                                  </p>
+                                </>
+                              ) : (
+                                <>
+                                  <p className="text-sm text-muted-foreground">{t('status')}</p>
+                                  <p className="text-lg font-semibold">
+                                    {t('completed')}
+                                  </p>
+                                </>
+                              )
+                            ) : null}
                           </div>
                         ) : (
                           <div>
                             <p className="text-sm text-muted-foreground">{t('progress')}</p>
                             <p className="text-lg font-semibold">
-                              {submission.questions_answered}/{submission.total_questions}
+                              {(exercise.skill_type?.toLowerCase() === 'reading' || exercise.skill_type?.toLowerCase() === 'listening') && submission.total_questions > 0 ? (
+                                <>{submission.questions_answered}/{submission.total_questions}</>
+                              ) : (
+                                t('in_progress')
+                              )}
                             </p>
                           </div>
                         )}
@@ -330,6 +403,26 @@ export default function ExerciseHistoryPage() {
                             <p className="text-sm text-muted-foreground">{t('band_score')}</p>
                             <p className="text-lg font-semibold text-primary">
                               {submission.band_score}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Word Count for Writing */}
+                        {exercise.skill_type?.toLowerCase() === 'writing' && submission.word_count && submission.word_count > 0 && (
+                          <div>
+                            <p className="text-sm text-muted-foreground">{t('word_count')}</p>
+                            <p className="text-lg font-semibold text-orange-600">
+                              {submission.word_count}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Audio Duration for Speaking */}
+                        {exercise.skill_type?.toLowerCase() === 'speaking' && submission.audio_duration_seconds && submission.audio_duration_seconds > 0 && (
+                          <div>
+                            <p className="text-sm text-muted-foreground">{t('speaking_duration')}</p>
+                            <p className="text-lg font-semibold text-purple-600">
+                              {Math.floor(submission.audio_duration_seconds / 60)}:{String(submission.audio_duration_seconds % 60).padStart(2, '0')}
                             </p>
                           </div>
                         )}

@@ -46,8 +46,8 @@ func main() {
 		log.Println("✅ YouTube service initialized")
 	}
 
-	// Initialize service
-	svc := service.NewCourseService(repo, userServiceClient, notificationClient, exerciseClient, youtubeService)
+	// Initialize service with internal key for session tracking
+	svc := service.NewCourseService(repo, userServiceClient, notificationClient, exerciseClient, youtubeService, cfg.InternalAPIKey, cfg.UserServiceURL)
 	log.Println("✅ Service initialized")
 
 	// Initialize and start video sync service

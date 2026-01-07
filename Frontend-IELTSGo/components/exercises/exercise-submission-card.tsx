@@ -15,12 +15,16 @@ function formatScore(score: number): string {
   return `${Math.round(score * 10) / 10}%`
 }
 
-function formatTime(minutes: number): string {
-  if (minutes < 1) return `${Math.round(minutes * 60)}s`
-  if (minutes < 60) return `${Math.round(minutes)}m`
+function formatTime(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = seconds % 60
+  if (minutes < 60) {
+    return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`
+  }
   const hours = Math.floor(minutes / 60)
-  const mins = Math.round(minutes % 60)
-  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`
+  const remainingMinutes = minutes % 60
+  return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`
 }
 
 export function ExerciseSubmissionCard({ exercise, submission }: ExerciseSubmissionCardProps) {
@@ -105,16 +109,42 @@ export function ExerciseSubmissionCard({ exercise, submission }: ExerciseSubmiss
               </span>
             </div>
           )}
-          <div className="flex items-center gap-1.5">
-            <Target className="h-4 w-4 text-blue-600" aria-hidden="true" />
-            <span className="font-medium">
-              {submission.questions_answered || 0}/{submission.total_questions || 0} {t('questions')}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Clock className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-            <span>{formatTime(Math.floor((submission.time_spent_seconds || 0) / 60))}</span>
-          </div>
+          {/* Only show questions for Reading/Listening */}
+          {(skillType.toLowerCase() === 'reading' || skillType.toLowerCase() === 'listening') && (
+            <div className="flex items-center gap-1.5">
+              <Target className="h-4 w-4 text-blue-600" aria-hidden="true" />
+              <span className="font-medium">
+                {submission.questions_answered || 0}/{submission.total_questions || 0} {t('questions')}
+              </span>
+            </div>
+          )}
+          {/* Show word count for Writing */}
+          {skillType.toLowerCase() === 'writing' && submission.word_count && submission.word_count > 0 && (
+            <div className="flex items-center gap-1.5">
+              <Target className="h-4 w-4 text-orange-600" aria-hidden="true" />
+              <span className="font-medium">
+                {submission.word_count} {t('words_written')}
+              </span>
+            </div>
+          )}
+          {/* Show duration for Speaking */}
+          {skillType.toLowerCase() === 'speaking' && submission.audio_duration_seconds && submission.audio_duration_seconds > 0 && (
+            <div className="flex items-center gap-1.5">
+              <Target className="h-4 w-4 text-purple-600" aria-hidden="true" />
+              <span className="font-medium">
+                {Math.floor(submission.audio_duration_seconds / 60)}:{String(submission.audio_duration_seconds % 60).padStart(2, '0')} {t('speaking_duration')}
+              </span>
+            </div>
+          )}
+          {/* Show time spent */}
+          {submission.time_spent_seconds !== undefined && submission.time_spent_seconds > 0 && (
+            <div className="flex items-center gap-1.5">
+              <Clock className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+              <span className="font-medium">
+                {t('time_spent')}: {formatTime(submission.time_spent_seconds)}
+              </span>
+            </div>
+          )}
         </>
       }
       progress={submission.status !== 'completed' && submission.total_questions > 0 ? {

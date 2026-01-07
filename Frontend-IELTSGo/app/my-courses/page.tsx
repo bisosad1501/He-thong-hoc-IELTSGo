@@ -75,6 +75,17 @@ export default function MyCoursesPage() {
     }
   }, [user, loadEnrolledCourses])
 
+  // ✅ Listen for lesson progress updates to refresh enrollment data
+  useEffect(() => {
+    const handleProgressUpdate = () => {
+      console.log('[My Courses] Lesson progress updated - refetching enrollments')
+      loadEnrolledCourses()
+    }
+
+    window.addEventListener('lessonProgressUpdated', handleProgressUpdate)
+    return () => window.removeEventListener('lessonProgressUpdated', handleProgressUpdate)
+  }, [loadEnrolledCourses])
+
   // Pull to refresh - memoized callback
   const { ref: pullToRefreshRef } = usePullToRefresh(loadEnrolledCourses, true)
 

@@ -480,6 +480,7 @@ Sử dụng Postman hoặc curl để test APIs
 - [Quick Start Guide](QUICK_START.md)
 - [Database Schema Documentation](database/README.md)
 - [API Endpoints](docs/API_ENDPOINTS.md)
+- [MinIO Storage Setup](docs/MINIO_SETUP.md)
 - [Architecture Overview](docs/ARCHITECTURE.md) (TODO)
 
 ---
