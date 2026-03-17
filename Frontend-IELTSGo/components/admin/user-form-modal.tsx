@@ -23,29 +23,32 @@ export function UserFormModal({ open, onClose, onSubmit, user }: UserFormModalPr
   const t = useTranslations('common')
 
   const [formData, setFormData] = useState({
-    name: "",
     email: "",
+    phone: "",
+    password: "",
     role: "student",
-    status: "active",
+    is_active: true,
   })
 
   useEffect(() => {
     if (user) {
       setFormData({
-        name: user.name,
         email: user.email,
-        role: user.role,
-        status: user.status || "active",
+        phone: user.phone || "",
+        password: "",
+        role: user.role || "student",
+        is_active: user.is_active,
       })
     } else {
       setFormData({
-        name: "",
         email: "",
+        phone: "",
+        password: "",
         role: "student",
-        status: "active",
+        is_active: true,
       })
     }
-  }, [user])
+  }, [user, open])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -56,19 +59,10 @@ export function UserFormModal({ open, onClose, onSubmit, user }: UserFormModalPr
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{user ? "Edit User" : "Create New User"}</DialogTitle>
+          <DialogTitle>{user ? t('edit_user') : t('create_new_user')}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">{t('name')}</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                required
-              />
-            </div>
             <div className="space-y-2">
               <Label htmlFor="email">{t('email')}</Label>
               <Input
@@ -77,11 +71,44 @@ export function UserFormModal({ open, onClose, onSubmit, user }: UserFormModalPr
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 required
+                disabled={!!user} // Email cannot be changed
               />
+              {user && (
+                <p className="text-xs text-muted-foreground">
+                  {t('email_cannot_be_changed')}
+                </p>
+              )}
             </div>
             <div className="space-y-2">
+              <Label htmlFor="phone">{t('phone')}</Label>
+              <Input
+                id="phone"
+                type="tel"
+                placeholder="+84901234567"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              />
+            </div>
+            {!user && (
+              <div className="space-y-2">
+                <Label htmlFor="password">{t('password')}</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder={t('enter_password')}
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  required
+                />
+              </div>
+            )}
+            <div className="space-y-2">
               <Label htmlFor="role">{t('role')}</Label>
-              <Select value={formData.role} onValueChange={(value) => setFormData({ ...formData, role: value })}>
+              <Select 
+                value={formData.role} 
+                onValueChange={(value) => setFormData({ ...formData, role: value })}
+                disabled={!!user}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -91,26 +118,35 @@ export function UserFormModal({ open, onClose, onSubmit, user }: UserFormModalPr
                   <SelectItem value="admin">{t('admin')}</SelectItem>
                 </SelectContent>
               </Select>
+              {user && (
+                <p className="text-xs text-muted-foreground">
+                  {t('role_cannot_be_changed_here')}
+                </p>
+              )}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="status">{t('status')}</Label>
-              <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">{t('active')}</SelectItem>
-                  <SelectItem value="suspended">{t('suspended')}</SelectItem>
-                  <SelectItem value="pending">{t('pending')}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {user && (
+              <div className="space-y-2">
+                <Label htmlFor="status">{t('status')}</Label>
+                <Select 
+                  value={formData.is_active ? "active" : "suspended"} 
+                  onValueChange={(value) => setFormData({ ...formData, is_active: value === "active" })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">{t('active')}</SelectItem>
+                    <SelectItem value="suspended">{t('suspended')}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
-              Cancel
+              {t('cancel')}
             </Button>
-            <Button type="submit">{user ? "Update" : "Create"}</Button>
+            <Button type="submit">{user ? t('update') : t('create')}</Button>
           </DialogFooter>
         </form>
       </DialogContent>

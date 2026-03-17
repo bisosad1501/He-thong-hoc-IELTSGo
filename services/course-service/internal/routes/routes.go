@@ -104,16 +104,23 @@ func SetupRoutes(
 
 			// Module and lesson management (instructor and admin)
 			admin.POST("/modules", authMiddleware.RequireRole("instructor", "admin"), handler.CreateModule)
+			admin.PUT("/modules/:id", authMiddleware.RequireRole("instructor", "admin"), handler.UpdateModule)
+			admin.DELETE("/modules/:id", authMiddleware.RequireRole("instructor", "admin"), handler.DeleteModule)
+
 			admin.POST("/lessons", authMiddleware.RequireRole("instructor", "admin"), handler.CreateLesson)
+			admin.PUT("/lessons/:id", authMiddleware.RequireRole("instructor", "admin"), handler.UpdateLesson)
+			admin.DELETE("/lessons/:id", authMiddleware.RequireRole("instructor", "admin"), handler.DeleteLesson)
 
 			// Video management (instructor and admin)
-			admin.POST("/lessons/:lesson_id/videos", authMiddleware.RequireRole("instructor", "admin"), handler.AddVideoToLesson)
+			admin.POST("/lessons/:id/videos", authMiddleware.RequireRole("instructor", "admin"), handler.AddVideoToLesson)
+			admin.PUT("/lessons/:id/videos/:video_id", authMiddleware.RequireRole("instructor", "admin"), handler.UpdateLessonVideo)
+			admin.DELETE("/lessons/:id/videos/:video_id", authMiddleware.RequireRole("instructor", "admin"), handler.DeleteLessonVideo)
 
 			// Video duration sync (admin only)
-			admin.POST("/videos/sync-all", authMiddleware.RequireRole("admin"), handler.SyncAllVideoDurations)                      // Sync videos with missing duration
-			admin.POST("/videos/force-resync-all", authMiddleware.RequireRole("admin"), handler.ForceResyncAllVideos)               // Force re-sync ALL videos
-			admin.POST("/videos/:video_id/sync-duration", authMiddleware.RequireRole("admin"), handler.SyncSingleVideoDuration)     // Sync single video
-			admin.POST("/lessons/:lesson_id/sync-durations", authMiddleware.RequireRole("admin"), handler.SyncLessonVideoDurations) // Sync lesson videos
+			admin.POST("/videos/sync-all", authMiddleware.RequireRole("admin"), handler.SyncAllVideoDurations)                  // Sync videos with missing duration
+			admin.POST("/videos/force-resync-all", authMiddleware.RequireRole("admin"), handler.ForceResyncAllVideos)           // Force re-sync ALL videos
+			admin.POST("/videos/:video_id/sync-duration", authMiddleware.RequireRole("admin"), handler.SyncSingleVideoDuration) // Sync single video
+			admin.POST("/lessons/:id/sync-durations", authMiddleware.RequireRole("admin"), handler.SyncLessonVideoDurations)    // Sync lesson videos
 		}
 	}
 }

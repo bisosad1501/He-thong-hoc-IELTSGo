@@ -62,9 +62,18 @@ export default function AdminDashboard() {
       console.log('[Admin Dashboard] Enrollment data:', enrollData)
       console.log('[Admin Dashboard] Activities:', activitiesData)
       
+      // Filter out future dates from enrollment data
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const filteredEnrollData = enrollData.filter(item => {
+        const itemDate = new Date(item.date)
+        itemDate.setHours(0, 0, 0, 0)
+        return itemDate <= today
+      })
+      
       setStats(statsData)
       setUserGrowthData(growthData)
-      setEnrollmentData(enrollData)
+      setEnrollmentData(filteredEnrollData)
       setActivities(activitiesData)
     } catch (error) {
       console.error("[Admin Dashboard] Failed to load dashboard data:", error)
@@ -139,12 +148,12 @@ export default function AdminDashboard() {
                 {stats.user_growth >= 0 ? (
                   <>
                     <TrendingUp className="w-3 h-3 text-green-500" />
-                    <span className="text-green-500">+{stats.user_growth}%</span>
+                    <span className="text-green-500">+{Math.abs(stats.user_growth).toFixed(1)}%</span>
                   </>
                 ) : (
                   <>
                     <TrendingDown className="w-3 h-3 text-red-500" />
-                    <span className="text-red-500">{stats.user_growth}%</span>
+                    <span className="text-red-500">{stats.user_growth.toFixed(1)}%</span>
                   </>
                 )}
                 {" "}{t('from_last_month')}

@@ -35,7 +35,7 @@ func (r *CourseRepository) GetCourses(query *models.CourseListQuery) ([]models.C
 			   c.total_enrollments, c.average_rating, c.total_reviews, c.display_order,
 			   c.published_at, c.created_at, c.updated_at
 		FROM courses c
-		WHERE 1=1
+		WHERE c.deleted_at IS NULL
 	`
 
 	// Filter by status - default to 'published' for public API
@@ -110,7 +110,7 @@ func (r *CourseRepository) GetCourses(query *models.CourseListQuery) ([]models.C
 	}
 
 	// Get total count first (before pagination)
-	countQuery := "SELECT COUNT(*) FROM courses c WHERE 1=1"
+	countQuery := "SELECT COUNT(*) FROM courses c WHERE deleted_at IS NULL"
 	if len(conditions) > 0 {
 		countQuery += " AND " + strings.Join(conditions, " AND ")
 	}
@@ -143,6 +143,9 @@ func (r *CourseRepository) GetCourses(query *models.CourseListQuery) ([]models.C
 	}
 
 	baseQuery += fmt.Sprintf(" ORDER BY %s", orderBy)
+
+	// Note: We don't use strings.Replace here because it might replace WHERE in subqueries
+	// The deleted_at IS NULL check is now in the baseQuery definition
 
 	// Pagination
 	limit := 20
@@ -206,7 +209,7 @@ func (r *CourseRepository) GetCourseByID(courseID uuid.UUID) (*models.Course, er
 			   c.total_enrollments, c.average_rating, c.total_reviews, c.display_order,
 			   c.published_at, c.created_at, c.updated_at
 		FROM courses c
-		WHERE c.id = $1
+		WHERE c.id = $1 AND c.deleted_at IS NULL
 	`
 
 	var course models.Course
@@ -516,7 +519,12 @@ func (r *CourseRepository) GetEnrollment(userID, courseID uuid.UUID) (*models.Co
 // GetUserEnrollments retrieves all enrollments for a user with REAL-TIME progress calculation (with pagination)
 func (r *CourseRepository) GetUserEnrollments(userID uuid.UUID, page, limit int) ([]models.CourseEnrollment, int, error) {
 	// Get total count first
-	countQuery := `SELECT COUNT(*) FROM course_enrollments WHERE user_id = $1`
+	countQuery := `
+		SELECT COUNT(e.id) 
+		FROM course_enrollments e
+		JOIN courses c ON c.id = e.course_id
+		WHERE e.user_id = $1 AND c.status = 'published' AND c.deleted_at IS NULL
+	`
 	var total int
 	err := r.db.QueryRow(countQuery, userID).Scan(&total)
 	if err != nil {
@@ -566,12 +574,13 @@ func (r *CourseRepository) GetUserEnrollments(userID uuid.UUID, page, limit int)
 			e.status, e.completed_at, e.certificate_issued, e.certificate_url,
 			e.expires_at, e.last_accessed_at, e.created_at, e.updated_at
 		FROM course_enrollments e
+		JOIN courses c ON c.id = e.course_id
 		LEFT JOIN course_lesson_counts clc ON clc.course_id = e.course_id
 		LEFT JOIN course_study_time cst ON cst.course_id = e.course_id
 		LEFT JOIN modules m ON m.course_id = e.course_id
 		LEFT JOIN lessons l ON l.module_id = m.id
 		LEFT JOIN lesson_progress lp ON lp.lesson_id = l.id AND lp.user_id = e.user_id
-		WHERE e.user_id = $1
+		WHERE e.user_id = $1 AND c.status = 'published' AND c.deleted_at IS NULL
 		GROUP BY e.id, e.user_id, e.course_id, e.enrollment_date, e.enrollment_type,
 				 e.payment_id, e.amount_paid, e.currency, e.status, e.completed_at,
 				 e.certificate_issued, e.certificate_url, e.expires_at, e.last_accessed_at,
@@ -793,6 +802,50 @@ func (r *CourseRepository) CreateLesson(lesson *models.Lesson) error {
 		lesson.ContentType, lesson.DurationMinutes, lesson.DisplayOrder,
 		lesson.IsFree, lesson.IsPublished,
 	).Scan(&lesson.CreatedAt, &lesson.UpdatedAt)
+}
+
+// UpdateModule updates an existing module
+func (r *CourseRepository) UpdateModule(module *models.Module) error {
+	query := `
+		UPDATE modules 
+		SET title = $2, description = $3, display_order = $4, updated_at = CURRENT_TIMESTAMP
+		WHERE id = $1
+		RETURNING updated_at
+	`
+
+	return r.db.QueryRow(query,
+		module.ID, module.Title, module.Description, module.DisplayOrder,
+	).Scan(&module.UpdatedAt)
+}
+
+// DeleteModule deletes a module (cascade deletes lessons)
+func (r *CourseRepository) DeleteModule(moduleID uuid.UUID) error {
+	query := `DELETE FROM modules WHERE id = $1`
+	_, err := r.db.Exec(query, moduleID)
+	return err
+}
+
+// UpdateLesson updates an existing lesson
+func (r *CourseRepository) UpdateLesson(lesson *models.Lesson) error {
+	query := `
+		UPDATE lessons 
+		SET title = $2, description = $3, content_type = $4,
+		    duration_minutes = $5, display_order = $6, is_free = $7, updated_at = CURRENT_TIMESTAMP
+		WHERE id = $1
+		RETURNING updated_at
+	`
+
+	return r.db.QueryRow(query,
+		lesson.ID, lesson.Title, lesson.Description, lesson.ContentType,
+		lesson.DurationMinutes, lesson.DisplayOrder, lesson.IsFree,
+	).Scan(&lesson.UpdatedAt)
+}
+
+// DeleteLesson deletes a lesson
+func (r *CourseRepository) DeleteLesson(lessonID uuid.UUID) error {
+	query := `DELETE FROM lessons WHERE id = $1`
+	_, err := r.db.Exec(query, lessonID)
+	return err
 }
 
 // PublishCourse publishes a course
@@ -1236,6 +1289,94 @@ func (r *CourseRepository) GetLessonVideoCount(lessonID uuid.UUID) (int, error) 
 	return count, err
 }
 
+// GetLessonVideoByID gets a video by ID
+func (r *CourseRepository) GetLessonVideoByID(videoID uuid.UUID) (*models.LessonVideo, error) {
+	query := `
+		SELECT id, lesson_id, title, video_provider, video_id, video_url,
+		       duration_seconds, thumbnail_url,
+		       display_order, created_at, updated_at
+		FROM lesson_videos
+		WHERE id = $1
+	`
+
+	video := &models.LessonVideo{}
+	err := r.db.QueryRow(query, videoID).Scan(
+		&video.ID,
+		&video.LessonID,
+		&video.Title,
+		&video.VideoProvider,
+		&video.VideoID,
+		&video.VideoURL,
+		&video.DurationSeconds,
+		&video.ThumbnailURL,
+		&video.DisplayOrder,
+		&video.CreatedAt,
+		&video.UpdatedAt,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return video, nil
+}
+
+// UpdateLessonVideo updates an existing video
+func (r *CourseRepository) UpdateLessonVideo(video *models.LessonVideo) error {
+	query := `
+		UPDATE lesson_videos
+		SET title = $1,
+		    video_provider = $2,
+		    video_id = $3,
+		    video_url = $4,
+		    duration_seconds = $5,
+		    thumbnail_url = $6,
+		    display_order = $7,
+		    updated_at = NOW()
+		WHERE id = $8
+		RETURNING updated_at
+	`
+
+	return r.db.QueryRow(
+		query,
+		video.Title,
+		video.VideoProvider,
+		video.VideoID,
+		video.VideoURL,
+		video.DurationSeconds,
+		video.ThumbnailURL,
+		video.DisplayOrder,
+		video.ID,
+	).Scan(&video.UpdatedAt)
+}
+
+// DeleteLessonVideo deletes a video
+func (r *CourseRepository) DeleteLessonVideo(videoID uuid.UUID) error {
+	query := `DELETE FROM lesson_videos WHERE id = $1`
+	_, err := r.db.Exec(query, videoID)
+	return err
+}
+
+// RecalculateLessonDurationFromVideos recalculates lesson duration based on its videos
+func (r *CourseRepository) RecalculateLessonDurationFromVideos(lessonID uuid.UUID) error {
+	query := `
+		UPDATE lessons l
+		SET duration_minutes = COALESCE(
+			(SELECT CEIL(SUM(v.duration_seconds) / 60.0)::INTEGER
+			 FROM lesson_videos v
+			 WHERE v.lesson_id = l.id),
+			0
+		),
+		updated_at = NOW()
+		WHERE l.id = $1
+	`
+	_, err := r.db.Exec(query, lessonID)
+	return err
+}
+
 // UpdateVideoDuration updates video duration by video_id
 func (r *CourseRepository) UpdateVideoDuration(videoID string, durationSeconds int) error {
 	query := `
@@ -1410,5 +1551,39 @@ func (r *CourseRepository) UpdateLessonDuration(lessonID uuid.UUID, durationMinu
 	`
 
 	_, err := r.db.Exec(query, durationMinutes, lessonID)
+	return err
+}
+
+// RecalculateModuleDuration recalculates module duration from its lessons
+func (r *CourseRepository) RecalculateModuleDuration(moduleID uuid.UUID) error {
+	query := `
+		UPDATE modules m
+		SET duration_hours = COALESCE(
+			(SELECT SUM(l.duration_minutes) / 60.0 
+			 FROM lessons l 
+			 WHERE l.module_id = m.id),
+			0
+		),
+		updated_at = NOW()
+		WHERE m.id = $1
+	`
+	_, err := r.db.Exec(query, moduleID)
+	return err
+}
+
+// RecalculateCourseDuration recalculates course duration from its modules
+func (r *CourseRepository) RecalculateCourseDuration(courseID uuid.UUID) error {
+	query := `
+		UPDATE courses c
+		SET duration_hours = COALESCE(
+			(SELECT SUM(m.duration_hours) 
+			 FROM modules m 
+			 WHERE m.course_id = c.id),
+			0
+		),
+		updated_at = NOW()
+		WHERE c.id = $1
+	`
+	_, err := r.db.Exec(query, courseID)
 	return err
 }

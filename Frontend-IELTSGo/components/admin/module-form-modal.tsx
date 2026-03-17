@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { useToast } from "@/hooks/use-toast"
 import { instructorApi } from "@/lib/api/instructor"
 import { Loader2 } from "lucide-react"
 
@@ -25,6 +26,7 @@ interface ModuleFormModalProps {
 }
 
 export function ModuleFormModal({ courseId, module, open, onOpenChange, onSuccess, modulesCount }: ModuleFormModalProps) {
+  const { toast } = useToast()
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     title: "",
@@ -54,12 +56,20 @@ export function ModuleFormModal({ courseId, module, open, onOpenChange, onSucces
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!formData.title.trim()) {
-      alert("Please enter a module title")
+      toast({
+        title: "Validation Error",
+        description: "Please enter a module title",
+        variant: "destructive",
+      })
       return
     }
 
     if (!courseId) {
-      alert("Course ID is required")
+      toast({
+        title: "Error",
+        description: "Course ID is required",
+        variant: "destructive",
+      })
       return
     }
 
@@ -75,6 +85,10 @@ export function ModuleFormModal({ courseId, module, open, onOpenChange, onSucces
           duration_hours: formData.duration_hours > 0 ? formData.duration_hours : undefined,
           display_order: formData.display_order,
         })
+        toast({
+          title: "Success",
+          description: "Module updated successfully",
+        })
       } else {
         // Create new module
         const moduleData = {
@@ -86,6 +100,10 @@ export function ModuleFormModal({ courseId, module, open, onOpenChange, onSucces
         }
         console.log("Creating module with data:", moduleData)
         await instructorApi.createModule(moduleData)
+        toast({
+          title: "Success",
+          description: "Module created successfully",
+        })
       }
       
       onSuccess()
@@ -94,7 +112,11 @@ export function ModuleFormModal({ courseId, module, open, onOpenChange, onSucces
       console.error("Failed to save module:", error)
       console.error("Error details:", error.response?.data)
       const errorMsg = error.response?.data?.error?.message || error.response?.data?.message || "Failed to save module. Please try again."
-      alert(errorMsg)
+      toast({
+        title: "Error",
+        description: errorMsg,
+        variant: "destructive",
+      })
     } finally {
       setLoading(false)
     }

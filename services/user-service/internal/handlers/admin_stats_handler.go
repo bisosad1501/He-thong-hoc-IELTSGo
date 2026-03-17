@@ -29,6 +29,7 @@ type DashboardStats struct {
 	TotalCourses          int     `json:"total_courses"`
 	ActiveCourses         int     `json:"active_courses"`
 	DraftCourses          int     `json:"draft_courses"`
+	ArchivedCourses       int     `json:"archived_courses"`
 	TotalExercises        int     `json:"total_exercises"`
 	SubmissionsToday      int     `json:"submissions_today"`
 	AverageCompletionRate float64 `json:"average_completion_rate"`
@@ -112,16 +113,17 @@ func (h *AdminStatsHandler) GetDashboardStats(c *gin.Context) {
 	}
 
 	// Query course statistics from course_db
-	var totalCourses, activeCourses, draftCourses int
+	var totalCourses, activeCourses, draftCourses, archivedCourses int
 	err = h.db.QueryRow(`
 		SELECT 
 			COUNT(*),
 			COUNT(*) FILTER (WHERE status = 'published'),
-			COUNT(*) FILTER (WHERE status = 'draft')
+			COUNT(*) FILTER (WHERE status = 'draft'),
+			COUNT(*) FILTER (WHERE status = 'archived')
 		FROM dblink('dbname=course_db user=ielts_admin password=123456 host=localhost port=5432',
 			'SELECT id, status FROM courses WHERE deleted_at IS NULL'
 		) AS courses(id UUID, status VARCHAR)
-	`).Scan(&totalCourses, &activeCourses, &draftCourses)
+	`).Scan(&totalCourses, &activeCourses, &draftCourses, &archivedCourses)
 
 	if err != nil {
 		log.Printf("❌ Error querying course stats: %v", err)
@@ -129,6 +131,7 @@ func (h *AdminStatsHandler) GetDashboardStats(c *gin.Context) {
 		stats.TotalCourses = totalCourses
 		stats.ActiveCourses = activeCourses
 		stats.DraftCourses = draftCourses
+		stats.ArchivedCourses = archivedCourses
 	}
 
 	// Query exercise statistics from exercise_db

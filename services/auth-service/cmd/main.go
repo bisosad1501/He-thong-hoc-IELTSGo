@@ -65,6 +65,7 @@ func main() {
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService, googleOAuthService)
+	adminHandler := handlers.NewAdminHandler(userRepo, roleRepo)
 
 	// Setup Gin router
 	if cfg.AppEnv == "production" {
@@ -73,7 +74,7 @@ func main() {
 	router := gin.Default()
 
 	// Setup routes
-	routes.SetupRoutes(router, authHandler, authService)
+	routes.SetupRoutes(router, authHandler, adminHandler, authService)
 
 	// Start server
 	port := os.Getenv("PORT")

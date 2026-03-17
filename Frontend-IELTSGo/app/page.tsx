@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import type React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -60,6 +61,12 @@ export default function HomePage() {
 
         {/* Stats Section */}
         <StatsSection />
+
+        {/* Featured Courses Section */}
+        <FeaturedCoursesSection />
+
+        {/* Recommended Courses Section */}
+        <RecommendedCoursesSection />
 
         {/* Why Choose Section */}
         <WhyChooseSection />
@@ -498,5 +505,162 @@ function WhyChooseSection() {
         </div>
       </div>
     </div>
+  )
+}
+
+function FeaturedCoursesSection() {
+  const t = useTranslations('homepage')
+  const [courses, setCourses] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchFeatured = async () => {
+      try {
+        const { coursesApi } = await import('@/lib/api/courses')
+        const response = await coursesApi.getCourses({ is_featured: true }, 1, 6)
+        setCourses(response.data || [])
+      } catch (error) {
+        console.error('Failed to fetch featured courses:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchFeatured()
+  }, [])
+
+  if (loading || courses.length === 0) return null
+
+  return (
+    <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20">
+      <div className="text-center mb-10">
+        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary font-semibold mb-4">
+          <Star className="w-4 h-4 fill-current" />
+          Featured Courses
+        </div>
+        <h2 className="text-3xl sm:text-4xl font-bold mb-4">Handpicked for Excellence</h2>
+        <p className="text-muted-foreground max-w-2xl mx-auto">
+          Discover our most popular and highly-rated courses, carefully selected to help you achieve your IELTS goals.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {courses.map((course: any) => (
+          <CourseCardComponent key={course.id} course={course} />
+        ))}
+      </div>
+
+      <div className="mt-10 text-center">
+        <Link href="/courses?is_featured=true">
+          <Button size="lg" variant="outline">
+            View All Featured Courses
+            <ArrowRight className="ml-2 h-4 w-4" />
+          </Button>
+        </Link>
+      </div>
+    </div>
+  )
+}
+
+function RecommendedCoursesSection() {
+  const t = useTranslations('homepage')
+  const [courses, setCourses] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchRecommended = async () => {
+      try {
+        const { coursesApi } = await import('@/lib/api/courses')
+        const response = await coursesApi.getCourses({ is_recommended: true }, 1, 6)
+        setCourses(response.data || [])
+      } catch (error) {
+        console.error('Failed to fetch recommended courses:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchRecommended()
+  }, [])
+
+  if (loading || courses.length === 0) return null
+
+  return (
+    <div className="bg-muted/30 py-16 sm:py-20">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="text-center mb-10">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent/10 text-accent-foreground font-semibold mb-4">
+            <Award className="w-4 h-4" />
+            Recommended for You
+          </div>
+          <h2 className="text-3xl sm:text-4xl font-bold mb-4">Top Picks from Our Instructors</h2>
+          <p className="text-muted-foreground max-w-2xl mx-auto">
+            Courses recommended by our expert instructors to maximize your learning outcomes.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {courses.map((course: any) => (
+            <CourseCardComponent key={course.id} course={course} />
+          ))}
+        </div>
+
+        <div className="mt-10 text-center">
+          <Link href="/courses">
+            <Button size="lg">
+              Explore All Courses
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </Link>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CourseCardComponent({ course }: { course: any }) {
+  const router = useRouter()
+  return (
+    <Card 
+      className="group cursor-pointer hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
+      onClick={() => router.push(`/courses/${course.id}`)}
+    >
+      <CardContent className="p-4">
+        <div className="aspect-video bg-muted rounded-lg mb-4 overflow-hidden relative">
+          {course.thumbnail_url ? (
+            <img src={course.thumbnail_url} alt={course.title} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <BookOpen className="w-12 h-12 text-muted-foreground" />
+            </div>
+          )}
+          {course.is_featured && (
+            <div className="absolute top-2 right-2 bg-yellow-500 text-white px-2 py-1 rounded-full flex items-center gap-1 text-xs font-semibold">
+              <Star className="w-3 h-3 fill-white" />
+              Featured
+            </div>
+          )}
+          {course.is_recommended && (
+            <div className="absolute top-2 left-2 bg-blue-500 text-white px-2 py-1 rounded-full flex items-center gap-1 text-xs font-semibold">
+              <Award className="w-3 h-3" />
+              Recommended
+            </div>
+          )}
+        </div>
+        <h3 className="font-semibold text-lg mb-2 line-clamp-2 group-hover:text-primary transition-colors">
+          {course.title}
+        </h3>
+        <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
+          {course.short_description || course.description}
+        </p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1">
+            <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+            <span className="text-sm font-medium">{course.average_rating || '0.0'}</span>
+          </div>
+          <span className="text-sm font-medium text-primary">
+            {course.enrollment_type === 'free' ? 'Free' : `${course.price} ${course.currency}`}
+          </span>
+        </div>
+      </CardContent>
+    </Card>
   )
 }

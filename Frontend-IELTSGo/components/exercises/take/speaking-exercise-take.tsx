@@ -243,7 +243,6 @@ export function SpeakingExerciseTake({
     if (audioURL) {
       URL.revokeObjectURL(audioURL)
     }
-    setAudioFile(null)
     setAudioURL(null)
     onFileChange(null, 0)
     setRecordingTime(0)

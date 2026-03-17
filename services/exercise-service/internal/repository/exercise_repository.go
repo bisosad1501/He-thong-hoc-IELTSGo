@@ -24,9 +24,21 @@ func NewExerciseRepository(db *sql.DB) *ExerciseRepository {
 
 // GetExercises returns paginated list with filters
 func (r *ExerciseRepository) GetExercises(query *models.ExerciseListQuery) ([]models.Exercise, int, error) {
-	where := []string{"is_published = true"}
+	where := []string{}
 	args := []interface{}{}
 	argCount := 0
+
+	// Filter by is_published if specified, otherwise default to published only
+	if query.IsPublished != nil {
+		argCount++
+		where = append(where, fmt.Sprintf("is_published = $%d", argCount))
+		args = append(args, *query.IsPublished)
+	} else {
+		where = append(where, "is_published = true")
+	}
+
+	// Always filter out soft-deleted records
+	where = append(where, "deleted_at IS NULL")
 
 	// Parse comma-separated values for OR logic within same category
 	// Example: skill_type=listening,reading -> skill_type IN ('listening', 'reading')
@@ -108,6 +120,13 @@ func (r *ExerciseRepository) GetExercises(query *models.ExerciseListQuery) ([]mo
 		// Note: Course Service should pass course_id as well for proper filtering
 		where = append(where, fmt.Sprintf("module_id = $%d", argCount))
 		args = append(args, *query.ModuleID)
+	}
+
+	// Filter by creator/instructor
+	if query.CreatedBy != nil {
+		argCount++
+		where = append(where, fmt.Sprintf("created_by = $%d", argCount))
+		args = append(args, *query.CreatedBy)
 	}
 
 	if query.Search != "" {
@@ -236,7 +255,7 @@ func (r *ExerciseRepository) GetExerciseByID(id uuid.UUID) (*models.ExerciseDeta
 			e.speaking_part_number, e.speaking_prompt_text, e.speaking_cue_card_topic, e.speaking_cue_card_points,
 			e.speaking_preparation_time_seconds, e.speaking_response_time_seconds, e.speaking_follow_up_questions
 		FROM exercises e
-		WHERE e.id = $1 AND e.is_published = true
+		WHERE e.id = $1 AND e.is_published = true AND e.deleted_at IS NULL
 	`, id).Scan(
 		&exercise.ID, &exercise.Title, &exercise.Slug, &exercise.Description,
 		&exercise.ExerciseType, &exercise.SkillType, &exercise.IELTSTestType, &exercise.Difficulty,
@@ -268,6 +287,64 @@ func (r *ExerciseRepository) GetExerciseByID(id uuid.UUID) (*models.ExerciseDeta
 	}, nil
 }
 
+// GetExerciseByIDAdmin returns exercise with sections and questions (including unpublished)
+func (r *ExerciseRepository) GetExerciseByIDAdmin(id uuid.UUID) (*models.ExerciseDetailResponse, error) {
+	// Get exercise (without is_published filter for admin)
+	var exercise models.Exercise
+	err := r.db.QueryRow(`
+		SELECT 
+			e.id, e.title, e.slug, e.description, e.exercise_type, e.skill_type, e.ielts_test_type, e.difficulty,
+			e.ielts_level, 
+			COALESCE((
+				SELECT COUNT(*) FROM questions q 
+				INNER JOIN exercise_sections es ON q.section_id = es.id 
+				WHERE es.exercise_id = e.id
+			), 0) as total_questions,
+			e.total_sections, e.time_limit_minutes,
+			e.thumbnail_url, e.audio_url, e.audio_duration_seconds, e.audio_transcript,
+			e.passage_count, e.course_id, e.module_id, e.passing_score, e.total_points,
+			e.is_free, e.is_published, e.total_attempts, e.average_score,
+			e.average_completion_time, e.display_order, e.created_by, e.published_at,
+			e.created_at, e.updated_at,
+			e.writing_task_type, e.writing_prompt_text, e.writing_visual_type, e.writing_visual_url, e.writing_word_requirement,
+			e.speaking_part_number, e.speaking_prompt_text, e.speaking_cue_card_topic, e.speaking_cue_card_points,
+			e.speaking_preparation_time_seconds, e.speaking_response_time_seconds, e.speaking_follow_up_questions
+		FROM exercises e
+		WHERE e.id = $1 AND e.deleted_at IS NULL
+	`, id).Scan(
+		&exercise.ID, &exercise.Title, &exercise.Slug, &exercise.Description,
+		&exercise.ExerciseType, &exercise.SkillType, &exercise.IELTSTestType, &exercise.Difficulty,
+		&exercise.IELTSLevel, &exercise.TotalQuestions, &exercise.TotalSections,
+		&exercise.TimeLimitMinutes, &exercise.ThumbnailURL, &exercise.AudioURL,
+		&exercise.AudioDurationSeconds, &exercise.AudioTranscript, &exercise.PassageCount,
+		&exercise.CourseID, &exercise.ModuleID, &exercise.PassingScore,
+		&exercise.TotalPoints, &exercise.IsFree, &exercise.IsPublished,
+		&exercise.TotalAttempts, &exercise.AverageScore, &exercise.AverageCompletionTime,
+		&exercise.DisplayOrder, &exercise.CreatedBy, &exercise.PublishedAt,
+		&exercise.CreatedAt, &exercise.UpdatedAt,
+		&exercise.WritingTaskType, &exercise.WritingPromptText, &exercise.WritingVisualType,
+		&exercise.WritingVisualURL, &exercise.WritingWordRequirement, &exercise.SpeakingPartNumber,
+		&exercise.SpeakingPromptText, &exercise.SpeakingCueCardTopic, pq.Array(&exercise.SpeakingCueCardPoints),
+		&exercise.SpeakingPreparationTime, &exercise.SpeakingResponseTime,
+		pq.Array(&exercise.SpeakingFollowUpQuestions),
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Get sections with questions
+	sections, err := r.GetSectionsWithQuestions(id)
+	if err != nil {
+		return nil, err
+	}
+
+	return &models.ExerciseDetailResponse{
+		Exercise: &exercise,
+		Sections: sections,
+	}, nil
+}
+
 // GetSectionsWithQuestions returns sections with their questions
 func (r *ExerciseRepository) GetSectionsWithQuestions(exerciseID uuid.UUID) ([]models.SectionWithQuestions, error) {
 	// Get sections
@@ -278,7 +355,7 @@ func (r *ExerciseRepository) GetSectionsWithQuestions(exerciseID uuid.UUID) ([]m
 			time_limit_minutes, display_order, created_at, updated_at
 		FROM exercise_sections 
 		WHERE exercise_id = $1 
-		ORDER BY display_order, section_number
+		ORDER BY section_number
 	`, exerciseID)
 	if err != nil {
 		return nil, err
@@ -323,7 +400,7 @@ func (r *ExerciseRepository) GetQuestionsWithOptions(sectionID uuid.UUID) ([]mod
 			difficulty, explanation, tips, display_order, created_at, updated_at
 		FROM questions 
 		WHERE section_id = $1 
-		ORDER BY display_order, question_number
+		ORDER BY question_number
 	`, sectionID)
 	if err != nil {
 		return nil, err
@@ -374,11 +451,44 @@ func (r *ExerciseRepository) GetQuestionsWithOptions(sectionID uuid.UUID) ([]mod
 				options = append(options, option)
 			}
 		}
-		// Note: For text-based questions, answers are not included in public view
+
+		// Get answers for admin view
+		var answers []models.QuestionAnswer
+		answerRows, err := r.db.Query(`
+			SELECT id, question_id, answer_text, answer_variations,
+				created_at
+			FROM question_answers
+			WHERE question_id = $1
+			ORDER BY created_at
+		`, question.ID)
+		if err != nil {
+			return nil, err
+		}
+		defer answerRows.Close()
+
+		for answerRows.Next() {
+			var answer models.QuestionAnswer
+			var answerVariations pq.StringArray
+			err := answerRows.Scan(
+				&answer.ID, &answer.QuestionID, &answer.AnswerText,
+				&answerVariations, &answer.CreatedAt,
+			)
+			if err != nil {
+				return nil, err
+			}
+			// Convert array to JSON string for frontend compatibility
+			if len(answerVariations) > 0 {
+				altJSON, _ := json.Marshal(answerVariations)
+				altJSONStr := string(altJSON)
+				answer.AlternativeAnswers = &altJSONStr
+			}
+			answers = append(answers, answer)
+		}
 
 		questions = append(questions, models.QuestionWithOptions{
 			Question: &question,
 			Options:  options,
+			Answers:  answers,
 		})
 	}
 
@@ -499,7 +609,7 @@ func (r *ExerciseRepository) SaveSubmissionAnswers(submissionID uuid.UUID, answe
 
 		// Validate question belongs to the exercise
 		if questionExerciseID != exerciseID {
-			log.Printf("[Exercise-Repo] Question %s does not belong to exercise %s (belongs to %s)", 
+			log.Printf("[Exercise-Repo] Question %s does not belong to exercise %s (belongs to %s)",
 				answer.QuestionID, exerciseID, questionExerciseID)
 			return fmt.Errorf("question %s does not belong to exercise %s", answer.QuestionID, exerciseID)
 		}
@@ -747,19 +857,19 @@ func (r *ExerciseRepository) CompleteSubmissionWithTime(submissionID uuid.UUID, 
 	// This ensures time represents ACTIVE study time, not just elapsed wall-clock time
 	completedAt := time.Now()
 	var timeSpent int
-	
+
 	if frontendTimeSpent != nil && *frontendTimeSpent > 0 {
 		// PRIMARY: Use frontend-tracked time (most accurate - only counts active time)
 		// Frontend timer runs only when user is actively working on exercise
 		timeSpent = *frontendTimeSpent
-		log.Printf("[Exercise-Repo] ✅ Using frontend-tracked time: %d seconds (~%.1f minutes)", 
+		log.Printf("[Exercise-Repo] ✅ Using frontend-tracked time: %d seconds (~%.1f minutes)",
 			timeSpent, float64(timeSpent)/60)
 	} else {
 		// FALLBACK: Calculate elapsed time from started_at to now
 		// This is less accurate as it includes time when user might be inactive
 		elapsedSeconds := int(completedAt.Sub(startedAt).Seconds())
 		log.Printf("[Exercise-Repo] ⚠️  No frontend time, calculating elapsed: %d seconds", elapsedSeconds)
-		
+
 		// Use totalTimeSpent from answers if available and reasonable
 		if totalTimeSpent > 0 && totalTimeSpent <= elapsedSeconds {
 			timeSpent = totalTimeSpent
@@ -781,7 +891,7 @@ func (r *ExerciseRepository) CompleteSubmissionWithTime(submissionID uuid.UUID, 
 			timeSpent = maxSeconds
 		}
 	}
-	
+
 	log.Printf("[Exercise-Repo] 📊 Final time_spent_seconds: %d (~%.1f minutes)", timeSpent, float64(timeSpent)/60)
 
 	// Update attempt
@@ -852,7 +962,7 @@ func (r *ExerciseRepository) GetSubmissionResult(submissionID uuid.UUID) (*model
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Handle NULL values for audio_url and transcript_text
 	if audioURL.Valid && audioURL.String != "" {
 		submission.AudioURL = &audioURL.String
@@ -860,7 +970,7 @@ func (r *ExerciseRepository) GetSubmissionResult(submissionID uuid.UUID) (*model
 	} else {
 		log.Printf("⚠️ [GetSubmissionResult] Audio URL is NULL or empty")
 	}
-	
+
 	if transcriptText.Valid && transcriptText.String != "" {
 		submission.TranscriptText = &transcriptText.String
 	}
@@ -1039,7 +1149,7 @@ func (r *ExerciseRepository) GetSubmissionResult(submissionID uuid.UUID) (*model
 
 // GetUserSubmissions returns user's submission history with filters (uses user_exercise_attempts)
 func (r *ExerciseRepository) GetUserSubmissions(userID uuid.UUID, query *models.MySubmissionsQuery) (*models.MySubmissionsResponse, error) {
-	where := []string{"a.user_id = $1"}
+	where := []string{"a.user_id = $1", "e.is_published = true"}
 	args := []interface{}{userID}
 	argCount := 1
 
@@ -1238,14 +1348,82 @@ func (r *ExerciseRepository) CreateExercise(req *models.CreateExerciseRequest, c
 		UpdatedAt:            time.Now(),
 	}
 
+	// Set default values for speaking exercises to satisfy constraints
+	if req.SkillType == "speaking" {
+		// Use provided values or set defaults
+		if req.SpeakingPartNumber != nil {
+			exercise.SpeakingPartNumber = req.SpeakingPartNumber
+		} else {
+			defaultPartNumber := 1
+			exercise.SpeakingPartNumber = &defaultPartNumber
+		}
+
+		if req.SpeakingPromptText != nil {
+			exercise.SpeakingPromptText = req.SpeakingPromptText
+		} else {
+			defaultPrompt := ""
+			exercise.SpeakingPromptText = &defaultPrompt
+		}
+
+		// Optional fields
+		exercise.SpeakingCueCardTopic = req.SpeakingCueCardTopic
+		exercise.SpeakingCueCardPoints = req.SpeakingCueCardPoints
+		exercise.SpeakingPreparationTime = req.SpeakingPreparationTimeSeconds
+		exercise.SpeakingResponseTime = req.SpeakingResponseTimeSeconds
+		exercise.SpeakingFollowUpQuestions = req.SpeakingFollowUpQuestions
+	}
+
+	// Set default values for writing exercises to satisfy constraints
+	if req.SkillType == "writing" {
+		// Convert task type from int to string and use provided values or set defaults
+		var writingTaskTypeStr string
+		if req.WritingTaskType != nil {
+			if *req.WritingTaskType == 1 {
+				writingTaskTypeStr = "task1"
+			} else {
+				writingTaskTypeStr = "task2"
+			}
+		} else {
+			writingTaskTypeStr = "task2" // Default to Task 2
+		}
+		exercise.WritingTaskType = &writingTaskTypeStr
+
+		if req.WritingPromptText != nil && *req.WritingPromptText != "" {
+			exercise.WritingPromptText = req.WritingPromptText
+		} else {
+			defaultPrompt := ""
+			exercise.WritingPromptText = &defaultPrompt
+		}
+
+		// Optional fields
+		exercise.WritingVisualURL = req.WritingVisualURL
+		exercise.WritingVisualType = req.WritingVisualType
+		exercise.WritingWordRequirement = req.WritingWordRequirement
+	}
+
+	// Set IELTS test type for reading exercises
+	if req.SkillType == "reading" {
+		if req.IELTSTestType != nil {
+			exercise.IELTSTestType = req.IELTSTestType
+		} else {
+			defaultTestType := "academic"
+			exercise.IELTSTestType = &defaultTestType
+		}
+	}
+
 	_, err := r.db.Exec(`
 		INSERT INTO exercises (
 			id, title, slug, description, exercise_type, skill_type, difficulty,
 			ielts_level, total_questions, total_sections, time_limit_minutes,
 			thumbnail_url, audio_url, audio_duration_seconds, audio_transcript,
 			passage_count, course_id, module_id, passing_score, total_points,
-			is_free, is_published, display_order, created_by, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
+			is_free, is_published, display_order, created_by, created_at, updated_at,
+			speaking_part_number, speaking_prompt_text, speaking_cue_card_topic,
+			speaking_cue_card_points, speaking_preparation_time_seconds,
+			speaking_response_time_seconds, speaking_follow_up_questions,
+			writing_task_type, writing_prompt_text, writing_visual_url,
+			writing_visual_type, writing_word_requirement, ielts_test_type
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39)
 	`, exercise.ID, exercise.Title, exercise.Slug, exercise.Description,
 		exercise.ExerciseType, exercise.SkillType, exercise.Difficulty,
 		exercise.IELTSLevel, exercise.TotalQuestions, exercise.TotalSections,
@@ -1253,7 +1431,12 @@ func (r *ExerciseRepository) CreateExercise(req *models.CreateExerciseRequest, c
 		exercise.AudioDurationSeconds, exercise.AudioTranscript, exercise.PassageCount,
 		exercise.CourseID, exercise.ModuleID, exercise.PassingScore,
 		exercise.TotalPoints, exercise.IsFree, exercise.IsPublished,
-		exercise.DisplayOrder, exercise.CreatedBy, exercise.CreatedAt, exercise.UpdatedAt)
+		exercise.DisplayOrder, exercise.CreatedBy, exercise.CreatedAt, exercise.UpdatedAt,
+		exercise.SpeakingPartNumber, exercise.SpeakingPromptText, exercise.SpeakingCueCardTopic,
+		pq.Array(exercise.SpeakingCueCardPoints), exercise.SpeakingPreparationTime,
+		exercise.SpeakingResponseTime, pq.Array(exercise.SpeakingFollowUpQuestions),
+		exercise.WritingTaskType, exercise.WritingPromptText, exercise.WritingVisualURL,
+		exercise.WritingVisualType, exercise.WritingWordRequirement, exercise.IELTSTestType)
 
 	if err != nil {
 		return nil, err
@@ -1283,6 +1466,31 @@ func (r *ExerciseRepository) UpdateExercise(id uuid.UUID, req *models.UpdateExer
 		updates = append(updates, fmt.Sprintf("difficulty = $%d", argCount))
 		args = append(args, *req.Difficulty)
 	}
+	if req.ExerciseType != nil {
+		argCount++
+		updates = append(updates, fmt.Sprintf("exercise_type = $%d", argCount))
+		args = append(args, *req.ExerciseType)
+	}
+	if req.SkillType != nil {
+		argCount++
+		updates = append(updates, fmt.Sprintf("skill_type = $%d", argCount))
+		args = append(args, *req.SkillType)
+	}
+	if req.CourseID != nil {
+		argCount++
+		updates = append(updates, fmt.Sprintf("course_id = $%d", argCount))
+		args = append(args, *req.CourseID)
+	}
+	if req.ModuleID != nil {
+		argCount++
+		updates = append(updates, fmt.Sprintf("module_id = $%d", argCount))
+		args = append(args, *req.ModuleID)
+	}
+	if req.IELTSLevel != nil {
+		argCount++
+		updates = append(updates, fmt.Sprintf("ielts_level = $%d", argCount))
+		args = append(args, *req.IELTSLevel)
+	}
 	if req.TimeLimitMinutes != nil {
 		argCount++
 		updates = append(updates, fmt.Sprintf("time_limit_minutes = $%d", argCount))
@@ -1292,6 +1500,16 @@ func (r *ExerciseRepository) UpdateExercise(id uuid.UUID, req *models.UpdateExer
 		argCount++
 		updates = append(updates, fmt.Sprintf("passing_score = $%d", argCount))
 		args = append(args, *req.PassingScore)
+	}
+	if req.ThumbnailURL != nil {
+		argCount++
+		updates = append(updates, fmt.Sprintf("thumbnail_url = $%d", argCount))
+		args = append(args, *req.ThumbnailURL)
+	}
+	if req.AudioURL != nil {
+		argCount++
+		updates = append(updates, fmt.Sprintf("audio_url = $%d", argCount))
+		args = append(args, *req.AudioURL)
 	}
 	if req.IsPublished != nil {
 		argCount++
@@ -1304,17 +1522,86 @@ func (r *ExerciseRepository) UpdateExercise(id uuid.UUID, req *models.UpdateExer
 		}
 	}
 
+	// Writing fields
+	if req.WritingPromptText != nil {
+		argCount++
+		updates = append(updates, fmt.Sprintf("writing_prompt_text = $%d", argCount))
+		args = append(args, *req.WritingPromptText)
+	}
+	if req.WritingTaskType != nil {
+		argCount++
+		updates = append(updates, fmt.Sprintf("writing_task_type = $%d", argCount))
+		args = append(args, *req.WritingTaskType)
+	}
+	if req.WritingVisualURL != nil {
+		argCount++
+		updates = append(updates, fmt.Sprintf("writing_visual_url = $%d", argCount))
+		args = append(args, *req.WritingVisualURL)
+	}
+	if req.WritingVisualType != nil {
+		argCount++
+		updates = append(updates, fmt.Sprintf("writing_visual_type = $%d", argCount))
+		args = append(args, *req.WritingVisualType)
+	}
+	if req.WritingWordRequirement != nil {
+		argCount++
+		updates = append(updates, fmt.Sprintf("writing_word_requirement = $%d", argCount))
+		args = append(args, *req.WritingWordRequirement)
+	}
+
+	// Speaking fields
+	if req.SpeakingPromptText != nil {
+		argCount++
+		updates = append(updates, fmt.Sprintf("speaking_prompt_text = $%d", argCount))
+		args = append(args, *req.SpeakingPromptText)
+	}
+	if req.SpeakingPartNumber != nil {
+		argCount++
+		updates = append(updates, fmt.Sprintf("speaking_part_number = $%d", argCount))
+		args = append(args, *req.SpeakingPartNumber)
+	}
+	if req.SpeakingCueCardTopic != nil {
+		argCount++
+		updates = append(updates, fmt.Sprintf("speaking_cue_card_topic = $%d", argCount))
+		args = append(args, *req.SpeakingCueCardTopic)
+	}
+	if req.SpeakingCueCardPoints != nil {
+		argCount++
+		updates = append(updates, fmt.Sprintf("speaking_cue_card_points = $%d", argCount))
+		args = append(args, pq.Array(req.SpeakingCueCardPoints))
+	}
+	if req.SpeakingPreparationTimeSeconds != nil {
+		argCount++
+		updates = append(updates, fmt.Sprintf("speaking_preparation_time_seconds = $%d", argCount))
+		args = append(args, *req.SpeakingPreparationTimeSeconds)
+	}
+	if req.SpeakingResponseTimeSeconds != nil {
+		argCount++
+		updates = append(updates, fmt.Sprintf("speaking_response_time_seconds = $%d", argCount))
+		args = append(args, *req.SpeakingResponseTimeSeconds)
+	}
+	if req.SpeakingFollowUpQuestions != nil {
+		argCount++
+		updates = append(updates, fmt.Sprintf("speaking_follow_up_questions = $%d", argCount))
+		args = append(args, pq.Array(req.SpeakingFollowUpQuestions))
+	}
+
 	argCount++
 	args = append(args, id)
 
 	query := fmt.Sprintf("UPDATE exercises SET %s WHERE id = $%d", strings.Join(updates, ", "), argCount)
+	log.Printf("[UpdateExercise] Executing query: %s", query)
+	log.Printf("[UpdateExercise] With args: %+v", args)
 	_, err := r.db.Exec(query, args...)
+	if err != nil {
+		log.Printf("[UpdateExercise] Database error: %v", err)
+	}
 	return err
 }
 
 // DeleteExercise soft deletes an exercise
 func (r *ExerciseRepository) DeleteExercise(id uuid.UUID) error {
-	_, err := r.db.Exec("UPDATE exercises SET is_published = false, updated_at = $1 WHERE id = $2", time.Now(), id)
+	_, err := r.db.Exec("UPDATE exercises SET is_published = false, deleted_at = $1, updated_at = $1 WHERE id = $2", time.Now(), id)
 	return err
 }
 
@@ -1332,6 +1619,37 @@ func (r *ExerciseRepository) CheckExerciseOwnership(exerciseID, userID uuid.UUID
 		return fmt.Errorf("unauthorized: you don't own this exercise")
 	}
 	return nil
+}
+
+// GetExerciseIDBySectionID returns the exercise ID that the section belongs to
+func (r *ExerciseRepository) GetExerciseIDBySectionID(sectionID uuid.UUID) (uuid.UUID, error) {
+	var exerciseID uuid.UUID
+	err := r.db.QueryRow("SELECT exercise_id FROM exercise_sections WHERE id = $1", sectionID).Scan(&exerciseID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return uuid.Nil, fmt.Errorf("section not found")
+		}
+		return uuid.Nil, err
+	}
+	return exerciseID, nil
+}
+
+// GetExerciseIDByQuestionID returns the exercise ID that the question belongs to
+func (r *ExerciseRepository) GetExerciseIDByQuestionID(questionID uuid.UUID) (uuid.UUID, error) {
+	var exerciseID uuid.UUID
+	err := r.db.QueryRow(`
+		SELECT s.exercise_id 
+		FROM exercise_sections s 
+		JOIN questions q ON q.section_id = s.id 
+		WHERE q.id = $1
+	`, questionID).Scan(&exerciseID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return uuid.Nil, fmt.Errorf("question not found")
+		}
+		return uuid.Nil, err
+	}
+	return exerciseID, nil
 }
 
 // CreateSection creates a new section for an exercise
@@ -1474,24 +1792,21 @@ func (r *ExerciseRepository) CreateQuestionOption(questionID uuid.UUID, req *mod
 
 // CreateQuestionAnswer creates answer for text-based question
 func (r *ExerciseRepository) CreateQuestionAnswer(questionID uuid.UUID, req *models.CreateQuestionAnswerRequest) (*models.QuestionAnswer, error) {
-	var alternativeAnswersJSON *string
+	answer := &models.QuestionAnswer{
+		ID:         uuid.New(),
+		QuestionID: questionID,
+		AnswerText: req.AnswerText,
+		CreatedAt:  time.Now(),
+	}
+
+	// Convert alternative answers to JSON string for model
 	if req.AlternativeAnswers != nil && len(req.AlternativeAnswers) > 0 {
 		jsonBytes, _ := json.Marshal(req.AlternativeAnswers)
 		jsonStr := string(jsonBytes)
-		alternativeAnswersJSON = &jsonStr
+		answer.AlternativeAnswers = &jsonStr
 	}
 
-	answer := &models.QuestionAnswer{
-		ID:                 uuid.New(),
-		QuestionID:         questionID,
-		AnswerText:         req.AnswerText,
-		AlternativeAnswers: alternativeAnswersJSON,
-		IsCaseSensitive:    req.IsCaseSensitive,
-		MatchingOrder:      req.MatchingOrder,
-		CreatedAt:          time.Now(),
-	}
-
-	// Convert to array for PostgreSQL using pq.Array
+	// Store in database using pq.Array for answer_variations
 	var answerVariations interface{}
 	if req.AlternativeAnswers != nil && len(req.AlternativeAnswers) > 0 {
 		answerVariations = pq.Array(req.AlternativeAnswers)
@@ -1506,6 +1821,191 @@ func (r *ExerciseRepository) CreateQuestionAnswer(questionID uuid.UUID, req *mod
 		true, answer.CreatedAt)
 
 	return answer, err
+}
+
+// UpdateQuestion updates question details
+func (r *ExerciseRepository) UpdateQuestion(questionID uuid.UUID, req *models.UpdateQuestionRequest) error {
+	updates := []string{}
+	args := []interface{}{}
+	argCount := 0
+
+	if req.QuestionText != nil {
+		argCount++
+		updates = append(updates, fmt.Sprintf("question_text = $%d", argCount))
+		args = append(args, *req.QuestionText)
+	}
+
+	if req.QuestionType != nil {
+		argCount++
+		updates = append(updates, fmt.Sprintf("question_type = $%d", argCount))
+		args = append(args, *req.QuestionType)
+	}
+
+	if req.Points != nil {
+		argCount++
+		updates = append(updates, fmt.Sprintf("points = $%d", argCount))
+		args = append(args, *req.Points)
+	}
+
+	if req.Difficulty != nil {
+		argCount++
+		updates = append(updates, fmt.Sprintf("difficulty = $%d", argCount))
+		args = append(args, *req.Difficulty)
+	}
+
+	if req.Explanation != nil {
+		argCount++
+		updates = append(updates, fmt.Sprintf("explanation = $%d", argCount))
+		args = append(args, *req.Explanation)
+	}
+
+	if req.Tips != nil {
+		argCount++
+		updates = append(updates, fmt.Sprintf("tips = $%d", argCount))
+		args = append(args, *req.Tips)
+	}
+
+	if len(updates) == 0 {
+		return nil // Nothing to update
+	}
+
+	argCount++
+	updates = append(updates, fmt.Sprintf("updated_at = $%d", argCount))
+	args = append(args, time.Now())
+
+	argCount++
+	args = append(args, questionID)
+
+	query := fmt.Sprintf(`
+		UPDATE questions 
+		SET %s 
+		WHERE id = $%d
+	`, strings.Join(updates, ", "), argCount)
+
+	_, err := r.db.Exec(query, args...)
+	return err
+}
+
+// DeleteQuestion deletes a question and all related data
+func (r *ExerciseRepository) DeleteQuestion(questionID uuid.UUID) error {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// Get the question number and section before deleting
+	var questionNumber int
+	var sectionID uuid.UUID
+	err = tx.QueryRow("SELECT question_number, section_id FROM questions WHERE id = $1", questionID).Scan(&questionNumber, &sectionID)
+	if err != nil {
+		return err
+	}
+
+	// Delete question options
+	_, err = tx.Exec("DELETE FROM question_options WHERE question_id = $1", questionID)
+	if err != nil {
+		return err
+	}
+
+	// Delete question answers
+	_, err = tx.Exec("DELETE FROM question_answers WHERE question_id = $1", questionID)
+	if err != nil {
+		return err
+	}
+
+	// Delete the question
+	_, err = tx.Exec("DELETE FROM questions WHERE id = $1", questionID)
+	if err != nil {
+		return err
+	}
+
+	// Renumber subsequent questions in the same section
+	_, err = tx.Exec(`
+		UPDATE questions 
+		SET question_number = question_number - 1 
+		WHERE section_id = $1 AND question_number > $2
+	`, sectionID, questionNumber)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+// DeleteQuestionOption deletes a specific question option
+func (r *ExerciseRepository) DeleteQuestionOption(questionID, optionID uuid.UUID) error {
+	_, err := r.db.Exec(`
+		DELETE FROM question_options 
+		WHERE id = $1 AND question_id = $2
+	`, optionID, questionID)
+	return err
+}
+
+// UpdateQuestionAnswer updates answer details
+func (r *ExerciseRepository) UpdateQuestionAnswer(questionID, answerID uuid.UUID, req *models.UpdateQuestionAnswerRequest) error {
+	updates := []string{}
+	args := []interface{}{}
+	argCount := 0
+
+	if req.AnswerText != nil {
+		argCount++
+		updates = append(updates, fmt.Sprintf("answer_text = $%d", argCount))
+		args = append(args, *req.AnswerText)
+	}
+
+	if req.AlternativeAnswers != nil {
+		argCount++
+		// Store as pq.Array for answer_variations column
+		updates = append(updates, fmt.Sprintf("answer_variations = $%d", argCount))
+		args = append(args, pq.Array(*req.AlternativeAnswers))
+	}
+
+	if len(updates) == 0 {
+		return fmt.Errorf("no fields to update")
+	}
+
+	argCount++
+	args = append(args, answerID)
+	argCount++
+	args = append(args, questionID)
+
+	query := fmt.Sprintf(`
+		UPDATE question_answers
+		SET %s
+		WHERE id = $%d AND question_id = $%d
+	`, strings.Join(updates, ", "), argCount-1, argCount)
+
+	result, err := r.db.Exec(query, args...)
+	if err != nil {
+		return fmt.Errorf("failed to update answer: %w", err)
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		return fmt.Errorf("answer not found")
+	}
+
+	return nil
+}
+
+// DeleteQuestionAnswer deletes a question answer
+func (r *ExerciseRepository) DeleteQuestionAnswer(questionID, answerID uuid.UUID) error {
+	result, err := r.db.Exec(`
+		DELETE FROM question_answers
+		WHERE id = $1 AND question_id = $2
+	`, answerID, questionID)
+
+	if err != nil {
+		return fmt.Errorf("failed to delete answer: %w", err)
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		return fmt.Errorf("answer not found")
+	}
+
+	return nil
 }
 
 // PublishExercise publishes an exercise (sets is_published to true)
@@ -2013,7 +2513,7 @@ func (r *ExerciseRepository) MarkSubmissionAsSubmittedWithTime(submissionID uuid
 	// Calculate time spent using same logic as CompleteSubmissionWithTime
 	completedAt := time.Now()
 	var timeSpent int
-	
+
 	if frontendTimeSpent != nil && *frontendTimeSpent > 0 {
 		// PRIMARY: Use frontend-tracked time
 		timeSpent = *frontendTimeSpent
@@ -2045,7 +2545,7 @@ func (r *ExerciseRepository) MarkSubmissionAsSubmittedWithTime(submissionID uuid
 	if err != nil {
 		return fmt.Errorf("failed to mark submission as submitted: %w", err)
 	}
-	
+
 	log.Printf("[Exercise-Repo] 📊 W/S submission marked as submitted - time_spent: %d seconds", timeSpent)
 	return nil
 }
@@ -2084,4 +2584,73 @@ func (r *ExerciseRepository) UpdateSubmissionWithAIResult(submissionID uuid.UUID
 	`
 	_, err = r.db.Exec(query, result.OverallBandScore, detailedScoresStr, result.Feedback, submissionID)
 	return err
+}
+
+// DeleteSection deletes a section and all its questions, then renumbers remaining sections
+func (r *ExerciseRepository) DeleteSection(sectionID uuid.UUID) error {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// Get section number and exercise ID before deleting
+	var sectionNumber int
+	var exerciseID uuid.UUID
+	err = tx.QueryRow("SELECT section_number, exercise_id FROM exercise_sections WHERE id = $1", sectionID).Scan(&sectionNumber, &exerciseID)
+	if err != nil {
+		return err
+	}
+
+	// Get all questions in this section
+	rows, err := tx.Query("SELECT id FROM questions WHERE section_id = $1", sectionID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	var questionIDs []uuid.UUID
+	for rows.Next() {
+		var qid uuid.UUID
+		if err := rows.Scan(&qid); err != nil {
+			return err
+		}
+		questionIDs = append(questionIDs, qid)
+	}
+
+	// Delete all question options and answers for questions in this section
+	for _, qid := range questionIDs {
+		_, err = tx.Exec("DELETE FROM question_options WHERE question_id = $1", qid)
+		if err != nil {
+			return err
+		}
+		_, err = tx.Exec("DELETE FROM question_answers WHERE question_id = $1", qid)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Delete all questions in this section
+	_, err = tx.Exec("DELETE FROM questions WHERE section_id = $1", sectionID)
+	if err != nil {
+		return err
+	}
+
+	// Delete the section
+	_, err = tx.Exec("DELETE FROM exercise_sections WHERE id = $1", sectionID)
+	if err != nil {
+		return err
+	}
+
+	// Renumber subsequent sections in the same exercise
+	_, err = tx.Exec(`
+		UPDATE exercise_sections 
+		SET section_number = section_number - 1 
+		WHERE exercise_id = $1 AND section_number > $2
+	`, exerciseID, sectionNumber)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }

@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Headphones, FileAudio, Clock, BookOpen, FileText } from "lucide-react"
@@ -27,6 +28,40 @@ interface ListeningExerciseDetailProps {
 export function ListeningExerciseDetail({ exercise, sections = [] }: ListeningExerciseDetailProps) {
   const t = useTranslations('exercises')
   const totalQuestions = sections.reduce((sum, s) => sum + (s.section?.total_questions || 0), 0)
+  const [detectedDuration, setDetectedDuration] = useState<number | null>(null)
+  const [isDetecting, setIsDetecting] = useState(false)
+
+  // Auto-detect audio duration if not provided by backend
+  useEffect(() => {
+    if (!exercise.audio_url) return
+    
+    // If duration already provided and valid, don't detect
+    if (exercise.audio_duration_seconds && exercise.audio_duration_seconds > 0) {
+      return
+    }
+
+    setIsDetecting(true)
+    const audio = new Audio(exercise.audio_url)
+    
+    audio.addEventListener('loadedmetadata', () => {
+      const duration = Math.floor(audio.duration)
+      if (duration > 0) {
+        setDetectedDuration(duration)
+      }
+      setIsDetecting(false)
+    })
+
+    audio.addEventListener('error', () => {
+      setIsDetecting(false)
+    })
+
+    return () => {
+      audio.pause()
+      audio.src = ''
+    }
+  }, [exercise.audio_url, exercise.audio_duration_seconds])
+
+  const displayDuration = exercise.audio_duration_seconds || detectedDuration
 
   return (
     <div className="space-y-6">
@@ -45,9 +80,15 @@ export function ListeningExerciseDetail({ exercise, sections = [] }: ListeningEx
               <div>
                 <p className="text-sm text-muted-foreground">{t('listening_duration')}</p>
                 <p className="font-medium">
-                  {exercise.audio_duration_seconds 
-                    ? `${Math.floor(exercise.audio_duration_seconds / 60)} ${t('minutes')} ${exercise.audio_duration_seconds % 60} ${t('seconds')}`
-                    : t('not_available')}
+                  {isDetecting ? (
+                    <span className="text-xs text-muted-foreground animate-pulse">
+                      {t('detecting') || 'Detecting...'}
+                    </span>
+                  ) : displayDuration ? (
+                    `${Math.floor(displayDuration / 60)} ${t('minutes')} ${displayDuration % 60} ${t('seconds')}`
+                  ) : (
+                    t('not_available')
+                  )}
                 </p>
               </div>
             </div>
@@ -60,6 +101,19 @@ export function ListeningExerciseDetail({ exercise, sections = [] }: ListeningEx
               </div>
             </div>
           </div>
+
+          {/* Audio Player Preview */}
+          {exercise.audio_url && (
+            <div className="pt-3 border-t">
+              <p className="text-sm font-medium mb-2">{t('preview_audio') || 'Preview Audio'}</p>
+              <audio 
+                src={exercise.audio_url} 
+                controls 
+                className="w-full"
+                preload="metadata"
+              />
+            </div>
+          )}
 
           <div className="pt-3 border-t">
             <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-50 dark:bg-blue-950">
@@ -85,25 +139,41 @@ export function ListeningExerciseDetail({ exercise, sections = [] }: ListeningEx
                 return (
                   <div 
                     key={section?.id || index}
-                    className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors"
+                    className="p-4 rounded-lg border hover:bg-muted/50 transition-colors space-y-3"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center font-semibold">
-                        {index + 1}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center font-semibold">
+                          {index + 1}
+                        </div>
+                        <div>
+                          <h4 className="font-medium">{section?.title || `${t('part')} ${index + 1}`}</h4>
+                          {section?.description && (
+                            <p className="text-sm text-muted-foreground mt-1">{section.description}</p>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="font-medium">{section?.title || `${t('part')} ${index + 1}`}</h4>
-                        {section?.description && (
-                          <p className="text-sm text-muted-foreground mt-1">{section.description}</p>
-                        )}
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                          <FileAudio className="w-4 h-4" />
+                          <span>{section?.total_questions || 0} {t('questions')}</span>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <FileAudio className="w-4 h-4" />
-                        <span>{section?.total_questions || 0} {t('questions')}</span>
+                    {/* Section Audio Player */}
+                    {section?.audio_url && (
+                      <div className="pl-13">
+                        <p className="text-xs text-muted-foreground mb-1">
+                          {t('section_audio') || 'Section Audio'}:
+                        </p>
+                        <audio 
+                          src={section.audio_url} 
+                          controls 
+                          className="w-full h-8"
+                          preload="metadata"
+                        />
                       </div>
-                    </div>
+                    )}
                   </div>
                 )
               })}

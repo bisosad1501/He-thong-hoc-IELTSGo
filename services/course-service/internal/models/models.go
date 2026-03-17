@@ -60,7 +60,7 @@ type Lesson struct {
 	CourseID         uuid.UUID `json:"course_id"`
 	Title            string    `json:"title"`
 	Description      *string   `json:"description,omitempty"`
-	ContentType      string    `json:"content_type"` // video, article, quiz
+	ContentType      string    `json:"content_type"` // video, text, quiz, exercise
 	DurationMinutes  *int      `json:"duration_minutes,omitempty"`
 	DisplayOrder     int       `json:"display_order"`
 	IsFree           bool      `json:"is_free"`
@@ -127,20 +127,18 @@ type CourseEnrollment struct {
 
 // LessonProgress tracks user progress for lessons
 type LessonProgress struct {
-	ID                   uuid.UUID  `json:"id"`
-	UserID               uuid.UUID  `json:"user_id"`
-	LessonID             uuid.UUID  `json:"lesson_id"`
-	CourseID             uuid.UUID  `json:"course_id"`
-	Status               string     `json:"status"` // not_started, in_progress, completed
-	ProgressPercentage   float64    `json:"progress_percentage"`
-	VideoWatchedSeconds  int        `json:"video_watched_seconds"`
-	VideoTotalSeconds    *int       `json:"video_total_seconds,omitempty"`
-	// video_watch_percentage REMOVED - Migration 011 (redundant with progress_percentage)
-	// time_spent_minutes REMOVED - Migration 013 (SOURCE OF TRUTH: last_position_seconds)
-	LastPositionSeconds  int        `json:"last_position_seconds"` // For resume watching & time calculation
-	CompletedAt          *time.Time `json:"completed_at,omitempty"`
-	FirstAccessedAt      time.Time  `json:"first_accessed_at"`
-	LastAccessedAt       time.Time  `json:"last_accessed_at"`
+	ID                  uuid.UUID  `json:"id"`
+	UserID              uuid.UUID  `json:"user_id"`
+	LessonID            uuid.UUID  `json:"lesson_id"`
+	CourseID            uuid.UUID  `json:"course_id"`
+	Status              string     `json:"status"` // not_started, in_progress, completed
+	ProgressPercentage  float64    `json:"progress_percentage"`
+	VideoWatchedSeconds int        `json:"video_watched_seconds"`
+	VideoTotalSeconds   *int       `json:"video_total_seconds,omitempty"`
+	LastPositionSeconds int        `json:"last_position_seconds"` // For resume watching & time calculation
+	CompletedAt         *time.Time `json:"completed_at,omitempty"`
+	FirstAccessedAt     time.Time  `json:"first_accessed_at"`
+	LastAccessedAt      time.Time  `json:"last_accessed_at"`
 }
 
 // CourseReview represents a course review
@@ -157,10 +155,10 @@ type CourseReview struct {
 	ApprovedAt   *time.Time `json:"approved_at,omitempty"`
 	CreatedAt    time.Time  `json:"created_at"`
 	UpdatedAt    time.Time  `json:"updated_at"`
-    // User info (from JOIN)
-    UserName      *string `json:"user_name,omitempty"`
-    UserEmail     *string `json:"user_email,omitempty"`
-    UserAvatarURL *string `json:"user_avatar_url,omitempty"`
+	// User info (from JOIN)
+	UserName      *string `json:"user_name,omitempty"`
+	UserEmail     *string `json:"user_email,omitempty"`
+	UserAvatarURL *string `json:"user_avatar_url,omitempty"`
 }
 
 // VideoSubtitle represents subtitle files for videos

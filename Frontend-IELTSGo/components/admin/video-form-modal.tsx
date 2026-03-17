@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useToast } from "@/hooks/use-toast"
 import { instructorApi } from "@/lib/api/instructor"
 import { Loader2, Youtube, Video as VideoIcon } from "lucide-react"
 
@@ -17,6 +18,7 @@ interface VideoFormModalProps {
 }
 
 export function VideoFormModal({ lessonId, open, onOpenChange, onSuccess }: VideoFormModalProps) {
+  const { toast } = useToast()
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     title: "",
@@ -64,12 +66,20 @@ export function VideoFormModal({ lessonId, open, onOpenChange, onSuccess }: Vide
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!formData.title.trim() || !formData.video_url.trim()) {
-      alert("Please enter video title and URL")
+      toast({
+        title: "Validation Error",
+        description: "Please enter video title and URL",
+        variant: "destructive",
+      })
       return
     }
 
     if (!lessonId) {
-      alert("Lesson ID is required")
+      toast({
+        title: "Error",
+        description: "Lesson ID is required",
+        variant: "destructive",
+      })
       return
     }
 
@@ -90,6 +100,11 @@ export function VideoFormModal({ lessonId, open, onOpenChange, onSuccess }: Vide
       console.log("Adding video to lesson:", lessonId, videoData)
       await instructorApi.addVideoToLesson(lessonId, videoData)
       
+      toast({
+        title: "Success",
+        description: "Video added successfully",
+      })
+      
       // Reset form
       setFormData({
         title: "",
@@ -108,7 +123,11 @@ export function VideoFormModal({ lessonId, open, onOpenChange, onSuccess }: Vide
       console.error("Failed to add video:", error)
       console.error("Error details:", error.response?.data)
       const errorMsg = error.response?.data?.error?.message || error.response?.data?.message || "Failed to add video. Please try again."
-      alert(errorMsg)
+      toast({
+        title: "Error",
+        description: errorMsg,
+        variant: "destructive",
+      })
     } finally {
       setLoading(false)
     }
@@ -195,49 +214,17 @@ export function VideoFormModal({ lessonId, open, onOpenChange, onSuccess }: Vide
             )}
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="duration_seconds">Duration (seconds)</Label>
-              <Input
-                id="duration_seconds"
-                type="number"
-                min="0"
-                value={formData.duration_seconds}
-                onChange={(e) => setFormData({ ...formData, duration_seconds: parseInt(e.target.value) || 0 })}
-                placeholder="0"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="quality">Quality</Label>
-              <Select
-                value={formData.quality}
-                onValueChange={(value) => setFormData({ ...formData, quality: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="480p">480p</SelectItem>
-                  <SelectItem value="720p">720p (HD)</SelectItem>
-                  <SelectItem value="1080p">1080p (Full HD)</SelectItem>
-                  <SelectItem value="1440p">1440p (2K)</SelectItem>
-                  <SelectItem value="2160p">2160p (4K)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="display_order">Display Order</Label>
-              <Input
-                id="display_order"
-                type="number"
-                min="0"
-                value={formData.display_order}
-                onChange={(e) => setFormData({ ...formData, display_order: parseInt(e.target.value) || 0 })}
-                placeholder="0"
-              />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="display_order">Display Order</Label>
+            <p className="text-sm text-muted-foreground">Order this video appears in the lesson (0 = first)</p>
+            <Input
+              id="display_order"
+              type="number"
+              min="0"
+              value={formData.display_order}
+              onChange={(e) => setFormData({ ...formData, display_order: parseInt(e.target.value) || 0 })}
+              placeholder="0"
+            />
           </div>
 
           {formData.thumbnail_url && (

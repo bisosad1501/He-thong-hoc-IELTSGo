@@ -51,6 +51,13 @@ const nextConfig = {
         port: '',
         pathname: '/**',
       },
+      // Allow example.com for demo images
+      {
+        protocol: 'https',
+        hostname: 'example.com',
+        port: '',
+        pathname: '/**',
+      },
       // Allow localhost for development
       {
         protocol: 'http',

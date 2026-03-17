@@ -67,20 +67,28 @@ func SetupRoutes(router *gin.Engine, handler *handlers.ExerciseHandler, storageH
 		admin.Use(authMiddleware.RequireRole("instructor", "admin"))
 		{
 			// Exercise management
+			admin.GET("/exercises", handler.GetMyExercises)                            // List my exercises
+			admin.GET("/exercises/:id", handler.GetExerciseByIDAdmin)                  // Get exercise (including unpublished)
 			admin.POST("/exercises", handler.CreateExercise)                           // Create exercise
 			admin.PUT("/exercises/:id", handler.UpdateExercise)                        // Update exercise
 			admin.DELETE("/exercises/:id", handler.DeleteExercise)                     // Delete exercise
 			admin.POST("/exercises/:id/publish", handler.PublishExercise)              // Publish exercise
 			admin.POST("/exercises/:id/unpublish", handler.UnpublishExercise)          // Unpublish exercise
 			admin.POST("/exercises/:id/sections", handler.CreateSection)               // Create section
+			admin.DELETE("/sections/:id", handler.DeleteSection)                       // Delete section
 			admin.GET("/exercises/:id/analytics", handler.GetExerciseAnalytics)        // Get analytics
 			admin.POST("/exercises/:id/tags", handler.AddTagToExercise)                // Add tag to exercise
 			admin.DELETE("/exercises/:id/tags/:tag_id", handler.RemoveTagFromExercise) // Remove tag
 
 			// Question management
-			admin.POST("/questions", handler.CreateQuestion)                   // Create question
-			admin.POST("/questions/:id/options", handler.CreateQuestionOption) // Add option
-			admin.POST("/questions/:id/answer", handler.CreateQuestionAnswer)  // Add answer
+			admin.POST("/questions", handler.CreateQuestion)                                // Create question
+			admin.PUT("/questions/:id", handler.UpdateQuestion)                             // Update question
+			admin.DELETE("/questions/:id", handler.DeleteQuestion)                          // Delete question
+			admin.POST("/questions/:id/options", handler.CreateQuestionOption)              // Add option
+			admin.DELETE("/questions/:id/options/:option_id", handler.DeleteQuestionOption) // Delete option
+			admin.POST("/questions/:id/answers", handler.CreateQuestionAnswer)              // Add answer
+			admin.PUT("/questions/:id/answers/:answer_id", handler.UpdateQuestionAnswer)    // Update answer
+			admin.DELETE("/questions/:id/answers/:answer_id", handler.DeleteQuestionAnswer) // Delete answer
 
 			// Tag management
 			admin.POST("/tags", handler.CreateTag) // Create tag

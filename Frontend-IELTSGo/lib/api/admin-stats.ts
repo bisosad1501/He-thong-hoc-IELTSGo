@@ -9,6 +9,7 @@ export interface DashboardStats {
   total_courses: number
   active_courses: number
   draft_courses: number
+  archived_courses: number
   total_exercises: number
   submissions_today: number
   average_completion_rate: number

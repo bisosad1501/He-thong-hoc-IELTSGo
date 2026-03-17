@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { Clock, Users, Star, BookOpen, GraduationCap } from "lucide-react"
+import { Clock, Users, Star, BookOpen, GraduationCap, Award } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { VerticalCardLayout } from "@/components/cards/base-card-layout"
 import type { Course } from "@/types"
@@ -64,6 +64,18 @@ function CourseCardComponent({ course, showProgress, progress, priority = false 
         >
           {t(level.toLowerCase() || 'beginner').toUpperCase()}
         </Badge>
+        {course.is_featured && (
+          <Badge className="bg-yellow-500 hover:bg-yellow-600 text-white">
+            <Star className="w-3 h-3 mr-1 fill-white" />
+            Featured
+          </Badge>
+        )}
+        {course.is_recommended && (
+          <Badge className="bg-blue-500 hover:bg-blue-600 text-white">
+            <Award className="w-3 h-3 mr-1" />
+            Recommended
+          </Badge>
+        )}
       </div>
       {(enrollmentType === "premium" || enrollmentType === "PAID") && course.price > 0 && (
         <div 

@@ -149,7 +149,7 @@ export default function LessonDetailPage() {
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-2">
                 {contentType === 'video' && <PlayCircle className="h-5 w-5 text-orange-500" />}
-                {contentType === 'article' && <FileText className="h-5 w-5 text-cyan-500" />}
+                {contentType === 'text' && <FileText className="h-5 w-5 text-cyan-500" />}
                 {contentType === 'exercise' && <PenTool className="h-5 w-5 text-pink-500" />}
                 <Badge variant="outline">{contentType}</Badge>
                 {lessonData.is_free && <Badge variant="secondary">{t('free')}</Badge>}
@@ -264,7 +264,7 @@ export default function LessonDetailPage() {
           )}
 
           {/* ARTICLE LESSON */}
-          {contentType === 'article' && lessonData.description && (
+          {contentType === 'text' && lessonData.description && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">

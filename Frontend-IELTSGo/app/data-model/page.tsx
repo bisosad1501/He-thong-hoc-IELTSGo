@@ -248,7 +248,7 @@ export default function DataModelPage() {
                               <div key={lesson.id || lessonIndex} className="bg-muted/50 p-3 rounded-lg">
                                 <div className="flex items-start gap-3">
                                   {lesson.content_type === 'video' && <Video className="h-4 w-4 text-orange-500 mt-1" />}
-                                  {lesson.content_type === 'article' && <FileText className="h-4 w-4 text-cyan-500 mt-1" />}
+                                  {lesson.content_type === 'text' && <FileText className="h-4 w-4 text-cyan-500 mt-1" />}
                                   {lesson.content_type === 'exercise' && <PenTool className="h-4 w-4 text-pink-500 mt-1" />}
                                   
                                   <div className="flex-1">

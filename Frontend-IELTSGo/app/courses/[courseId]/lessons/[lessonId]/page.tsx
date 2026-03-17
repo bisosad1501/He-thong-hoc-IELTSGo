@@ -673,7 +673,7 @@ export default function LessonPlayerPage() {
               </Button>
             </div>
 
-            {(lesson.content_type === "article" || lesson.contentType === "ARTICLE") && (
+            {(lesson.content_type === "text" || lesson.content_type === "article" || lesson.contentType === "TEXT" || lesson.contentType === "ARTICLE") && (
               <Card>
                 <CardHeader>
                   <CardTitle>{lesson.title}</CardTitle>
@@ -824,7 +824,7 @@ export default function LessonPlayerPage() {
                                         )}
                                       </>
                                     )}
-                                    {contentType === "article" && (
+                                    {(contentType === "text" || contentType === "article") && (
                                       <span className="text-xs text-muted-foreground flex items-center gap-1">
                                         <FileText className="w-3 h-3" />
                                         {t('article')}

@@ -72,8 +72,15 @@ export const instructorApi = {
     if (params?.status) queryParams.append("status", params.status)
     if (params?.sort) queryParams.append("sort", params.sort)
 
-    const response = await apiClient.get<PaginatedResponse<Course>>(`/instructor/courses?${queryParams.toString()}`)
-    return response.data
+    const response = await apiClient.get<{ success: boolean; data: { courses: Course[]; pagination: any } }>(`/courses?${queryParams.toString()}`)
+    // Transform BE format to FE format
+    return {
+      items: response.data.data.courses || [],
+      total: response.data.data.pagination?.total || 0,
+      page: response.data.data.pagination?.page || 1,
+      limit: response.data.data.pagination?.limit || 20,
+      totalPages: response.data.data.pagination?.total_pages || 0,
+    }
   },
 
   async getCourseById(id: string): Promise<Course> {
@@ -83,6 +90,11 @@ export const instructorApi = {
 
   async getCourse(id: string): Promise<Course> {
     return this.getCourseById(id)
+  },
+
+  async getCourseDetail(id: string): Promise<any> {
+    const response = await apiClient.get<{ success: boolean; data: any }>(`/courses/${id}`)
+    return response.data.data || response.data
   },
 
   async createCourse(data: {
@@ -114,6 +126,10 @@ export const instructorApi = {
     duration_hours?: number
     price?: number
     status?: string
+    skill_type?: string
+    level?: string
+    enrollment_type?: string
+    currency?: string
     is_featured?: boolean
     is_recommended?: boolean
   }): Promise<Course> {
@@ -132,6 +148,10 @@ export const instructorApi = {
 
   async archiveCourse(id: string): Promise<Course> {
     return this.updateCourse(id, { status: 'archived' })
+  },
+
+  async unarchiveCourse(id: string): Promise<Course> {
+    return this.updateCourse(id, { status: 'draft' })
   },
 
   // Modules
@@ -175,6 +195,7 @@ export const instructorApi = {
   },
 
   async updateLesson(id: string, data: {
+    module_id?: string
     title?: string
     description?: string
     content_type?: string
@@ -204,6 +225,24 @@ export const instructorApi = {
     return response.data.data || response.data
   },
 
+  async updateLessonVideo(lessonId: string, videoId: string, data: {
+    title?: string
+    video_provider?: string
+    video_id?: string
+    video_url?: string
+    duration_seconds?: number
+    thumbnail_url?: string
+    quality?: string
+    display_order?: number
+  }): Promise<any> {
+    const response = await apiClient.put(`/admin/lessons/${lessonId}/videos/${videoId}`, data)
+    return response.data.data || response.data
+  },
+
+  async deleteLessonVideo(lessonId: string, videoId: string): Promise<void> {
+    await apiClient.delete(`/admin/lessons/${lessonId}/videos/${videoId}`)
+  },
+
   // Exercises
   async getMyExercises(params?: {
     page?: number
@@ -219,7 +258,7 @@ export const instructorApi = {
     if (params?.difficulty) queryParams.append("difficulty", params.difficulty)
     if (params?.status) queryParams.append("status", params.status)
 
-    const response = await apiClient.get<PaginatedResponse<Exercise>>(`/instructor/exercises?${queryParams.toString()}`)
+    const response = await apiClient.get<PaginatedResponse<Exercise>>(`/admin/exercises?${queryParams.toString()}`)
     return response.data
   },
 }

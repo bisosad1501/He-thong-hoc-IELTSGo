@@ -1,45 +1,24 @@
 "use client"
 
-import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { CheckCircle, XCircle, Clock, Eye, Edit, Trash2, Plus } from "lucide-react"
-import { adminApi } from "@/lib/api/admin"
-import { useToast } from "@/hooks/use-toast"
-import { formatDate } from "@/lib/utils/date"
-import { useTranslations } from '@/lib/i18n'
-import { CourseEditModal } from "@/components/admin/course-edit-modal"
-import { CourseCreateModal } from "@/components/admin/course-create-modal"
-
-interface ContentItem {
-  id: string
-  type: "course"
-  title: string
-  author: string
-  instructor_name?: string
-  status: "draft" | "published" | "archived"
-  submittedAt: string
-  created_at?: string
-  published_at?: string
-  skill_type?: string
-  level?: string
-  total_enrollments?: number
-}
+import { useEffect } from "react"
 
 export default function AdminContentPage() {
   const router = useRouter()
-  const t = useTranslations('common')
+  
+  useEffect(() => {
+    // Redirect to courses-management since this page is deprecated
+    router.replace('/admin/courses-management')
+  }, [router])
 
-  const [content, setContent] = useState<ContentItem[]>([])
-  const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState("draft")
-  const { toast } = useToast()
-  const [editingCourseId, setEditingCourseId] = useState<string | null>(null)
-  const [editModalOpen, setEditModalOpen] = useState(false)
-  const [createModalOpen, setCreateModalOpen] = useState(false)
+  return (
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="text-center">
+        <div className="text-lg">Redirecting to Course Management...</div>
+      </div>
+    </div>
+  )
+}
 
   useEffect(() => {
     fetchContent()
@@ -53,7 +32,18 @@ export default function AdminContentPage() {
       
       // Transform courses data to ContentItem format
       const courses = response.data?.courses || []
-      const transformedContent = courses.map((course: any) => ({
+      console.log('[Admin Content] Total courses before filter:', courses.length)
+      console.log('[Admin Content] First course sample:', courses[0])
+      // Filter out deleted courses (soft delete)
+      const activeCourses = courses.filter((course: any) => {
+        const isDeleted = course.deleted_at !== null && course.deleted_at !== undefined
+        if (isDeleted) {
+          console.log('[Admin Content] Filtering out deleted course:', course.id, course.deleted_at)
+        }
+        return !isDeleted
+      })
+      console.log('[Admin Content] Active courses after filter:', activeCourses.length)
+      const transformedContent = activeCourses.map((course: any) => ({
         id: course.id,
         type: 'course' as const,
         title: course.title,
@@ -95,23 +85,34 @@ export default function AdminContentPage() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this course? This action cannot be undone.')) {
-      return
-    }
+    setCourseToDelete(id)
+    setDeleteDialogOpen(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!courseToDelete) return
+    
     try {
-      await adminApi.deleteCourse(id)
+      console.log('Deleting course:', courseToDelete)
+      const response = await adminApi.deleteCourse(courseToDelete)
+      console.log('Delete response:', response)
       toast({
         title: 'Success',
         description: 'Course deleted successfully',
       })
-      fetchContent()
-    } catch (error) {
+      // Remove deleted course from state immediately
+      setContent(prevContent => prevContent.filter(item => item.id !== courseToDelete))
+    } catch (error: any) {
       console.error('Delete error:', error)
+      console.error('Error response:', error.response?.data)
       toast({
         title: 'Error',
-        description: 'Failed to delete course. Only admins can delete courses.',
+        description: error.response?.data?.error?.message || 'Failed to delete course. Only admins can delete courses.',
         variant: "destructive",
       })
+    } finally {
+      setDeleteDialogOpen(false)
+      setCourseToDelete(null)
     }
   }
 
@@ -287,6 +288,23 @@ export default function AdminContentPage() {
           onOpenChange={setCreateModalOpen}
           onSuccess={handleCreateSuccess}
         />
+
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete this course? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
   )
 }

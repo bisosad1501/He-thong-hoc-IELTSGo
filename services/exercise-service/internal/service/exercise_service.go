@@ -14,19 +14,19 @@ import (
 )
 
 type ExerciseService struct {
-	repo                *repository.ExerciseRepository
-	userServiceClient   *client.UserServiceClient
-	notificationClient  *client.NotificationServiceClient
-	aiServiceClient     *aiClient.AIServiceClient // Phase 4: AI service client
+	repo                 *repository.ExerciseRepository
+	userServiceClient    *client.UserServiceClient
+	notificationClient   *client.NotificationServiceClient
+	aiServiceClient      *aiClient.AIServiceClient      // Phase 4: AI service client
 	storageServiceClient *aiClient.StorageServiceClient // For generating presigned URLs
 }
 
 func NewExerciseService(repo *repository.ExerciseRepository, userServiceClient *client.UserServiceClient, notificationClient *client.NotificationServiceClient, aiServiceClient *aiClient.AIServiceClient, storageServiceClient *aiClient.StorageServiceClient) *ExerciseService {
 	return &ExerciseService{
-		repo:                repo,
-		userServiceClient:   userServiceClient,
-		notificationClient:  notificationClient,
-		aiServiceClient:     aiServiceClient,
+		repo:                 repo,
+		userServiceClient:    userServiceClient,
+		notificationClient:   notificationClient,
+		aiServiceClient:      aiServiceClient,
 		storageServiceClient: storageServiceClient,
 	}
 }
@@ -47,6 +47,11 @@ func (s *ExerciseService) GetExercises(query *models.ExerciseListQuery) ([]model
 // GetExerciseByID returns exercise with all details
 func (s *ExerciseService) GetExerciseByID(id uuid.UUID) (*models.ExerciseDetailResponse, error) {
 	return s.repo.GetExerciseByID(id)
+}
+
+// GetExerciseByIDAdmin returns exercise with all details (including unpublished)
+func (s *ExerciseService) GetExerciseByIDAdmin(id uuid.UUID) (*models.ExerciseDetailResponse, error) {
+	return s.repo.GetExerciseByIDAdmin(id)
 }
 
 // StartExercise creates a new submission for user
@@ -87,12 +92,12 @@ func (s *ExerciseService) GetSubmissionResult(submissionID uuid.UUID) (*models.S
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// If submission has audio_url, convert it to API Gateway URL for frontend access
 	if result.Submission != nil && result.Submission.AudioURL != nil && *result.Submission.AudioURL != "" {
 		audioURL := *result.Submission.AudioURL
 		log.Printf("📎 [GetSubmissionResult] Audio URL from DB: %s", audioURL)
-		
+
 		// Extract object name from URL
 		// Format: http://minio:9000/ielts-audio/audio/user-id/file-id.ext
 		// Or: http://localhost:9000/ielts-audio/audio/user-id/file-id.ext
@@ -107,7 +112,7 @@ func (s *ExerciseService) GetSubmissionResult(submissionID uuid.UUID) (*models.S
 			log.Printf("⚠️ [GetSubmissionResult] Could not extract object name from URL: %s, keeping original", audioURL)
 		}
 	}
-	
+
 	return result, nil
 }
 
@@ -119,14 +124,14 @@ func (s *ExerciseService) extractObjectNameFromURL(url string) string {
 	if idx := strings.Index(url, "?"); idx != -1 {
 		url = url[:idx]
 	}
-	
+
 	// Extract path after bucket name
 	// URL format: http://host:port/bucket-name/object-name
 	parts := strings.Split(url, "/")
 	if len(parts) < 2 {
 		return ""
 	}
-	
+
 	// Find bucket name (ielts-audio) and get everything after it
 	bucketName := "ielts-audio"
 	bucketIndex := -1
@@ -136,11 +141,11 @@ func (s *ExerciseService) extractObjectNameFromURL(url string) string {
 			break
 		}
 	}
-	
+
 	if bucketIndex == -1 || bucketIndex >= len(parts)-1 {
 		return ""
 	}
-	
+
 	// Get object name (everything after bucket name)
 	objectParts := parts[bucketIndex+1:]
 	return strings.Join(objectParts, "/")
@@ -164,12 +169,22 @@ func (s *ExerciseService) CreateExercise(req *models.CreateExerciseRequest, crea
 }
 
 // UpdateExercise updates exercise details (admin only)
-func (s *ExerciseService) UpdateExercise(id uuid.UUID, req *models.UpdateExerciseRequest) error {
+func (s *ExerciseService) UpdateExercise(id uuid.UUID, req *models.UpdateExerciseRequest, userID uuid.UUID, userRole string) error {
+	if userRole != "admin" {
+		if err := s.repo.CheckExerciseOwnership(id, userID); err != nil {
+			return err
+		}
+	}
 	return s.repo.UpdateExercise(id, req)
 }
 
 // DeleteExercise soft deletes exercise (admin only)
-func (s *ExerciseService) DeleteExercise(id uuid.UUID) error {
+func (s *ExerciseService) DeleteExercise(id uuid.UUID, userID uuid.UUID, userRole string) error {
+	if userRole != "admin" {
+		if err := s.repo.CheckExerciseOwnership(id, userID); err != nil {
+			return err
+		}
+	}
 	return s.repo.DeleteExercise(id)
 }
 
@@ -179,51 +194,159 @@ func (s *ExerciseService) CheckOwnership(exerciseID, userID uuid.UUID) error {
 }
 
 // CreateSection creates a new section for exercise
-func (s *ExerciseService) CreateSection(exerciseID uuid.UUID, req *models.CreateSectionRequest, userID uuid.UUID) (*models.ExerciseSection, error) {
+func (s *ExerciseService) CreateSection(exerciseID uuid.UUID, req *models.CreateSectionRequest, userID uuid.UUID, userRole string) (*models.ExerciseSection, error) {
 	// Verify ownership
-	if err := s.repo.CheckExerciseOwnership(exerciseID, userID); err != nil {
-		return nil, err
+	if userRole != "admin" {
+		if err := s.repo.CheckExerciseOwnership(exerciseID, userID); err != nil {
+			return nil, err
+		}
 	}
 	return s.repo.CreateSection(exerciseID, req)
 }
 
 // CreateQuestion creates a new question
-func (s *ExerciseService) CreateQuestion(req *models.CreateQuestionRequest, userID uuid.UUID) (*models.Question, error) {
+func (s *ExerciseService) CreateQuestion(req *models.CreateQuestionRequest, userID uuid.UUID, userRole string) (*models.Question, error) {
 	// Verify ownership
-	if err := s.repo.CheckExerciseOwnership(req.ExerciseID, userID); err != nil {
-		return nil, err
+	if userRole != "admin" {
+		if err := s.repo.CheckExerciseOwnership(req.ExerciseID, userID); err != nil {
+			return nil, err
+		}
 	}
 	return s.repo.CreateQuestion(req)
 }
 
 // CreateQuestionOption creates an option for multiple choice question
-func (s *ExerciseService) CreateQuestionOption(questionID uuid.UUID, req *models.CreateQuestionOptionRequest, userID uuid.UUID) (*models.QuestionOption, error) {
+func (s *ExerciseService) CreateQuestionOption(questionID uuid.UUID, req *models.CreateQuestionOptionRequest, userID uuid.UUID, userRole string) (*models.QuestionOption, error) {
 	// Get exercise ID from question and verify ownership
-	// TODO: Add method to get exercise ID from question ID
+	if userRole != "admin" {
+		exerciseID, err := s.repo.GetExerciseIDByQuestionID(questionID)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.repo.CheckExerciseOwnership(exerciseID, userID); err != nil {
+			return nil, err
+		}
+	}
 	return s.repo.CreateQuestionOption(questionID, req)
 }
 
 // CreateQuestionAnswer creates answer for text-based question
-func (s *ExerciseService) CreateQuestionAnswer(questionID uuid.UUID, req *models.CreateQuestionAnswerRequest, userID uuid.UUID) (*models.QuestionAnswer, error) {
+func (s *ExerciseService) CreateQuestionAnswer(questionID uuid.UUID, req *models.CreateQuestionAnswerRequest, userID uuid.UUID, userRole string) (*models.QuestionAnswer, error) {
 	// Get exercise ID from question and verify ownership
-	// TODO: Add method to get exercise ID from question ID
+	if userRole != "admin" {
+		exerciseID, err := s.repo.GetExerciseIDByQuestionID(questionID)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.repo.CheckExerciseOwnership(exerciseID, userID); err != nil {
+			return nil, err
+		}
+	}
 	return s.repo.CreateQuestionAnswer(questionID, req)
 }
 
+// UpdateQuestion updates question details
+func (s *ExerciseService) UpdateQuestion(questionID uuid.UUID, req *models.UpdateQuestionRequest, userID uuid.UUID, userRole string) error {
+	if userRole != "admin" {
+		exerciseID, err := s.repo.GetExerciseIDByQuestionID(questionID)
+		if err != nil {
+			return err
+		}
+		if err := s.repo.CheckExerciseOwnership(exerciseID, userID); err != nil {
+			return err
+		}
+	}
+	return s.repo.UpdateQuestion(questionID, req)
+}
+
+// DeleteQuestion deletes a question
+func (s *ExerciseService) DeleteQuestion(questionID uuid.UUID, userID uuid.UUID, userRole string) error {
+	if userRole != "admin" {
+		exerciseID, err := s.repo.GetExerciseIDByQuestionID(questionID)
+		if err != nil {
+			return err
+		}
+		if err := s.repo.CheckExerciseOwnership(exerciseID, userID); err != nil {
+			return err
+		}
+	}
+	return s.repo.DeleteQuestion(questionID)
+}
+
+// DeleteSection deletes a section and all its questions
+func (s *ExerciseService) DeleteSection(sectionID uuid.UUID, userID uuid.UUID, userRole string) error {
+	if userRole != "admin" {
+		exerciseID, err := s.repo.GetExerciseIDBySectionID(sectionID)
+		if err != nil {
+			return err
+		}
+		if err := s.repo.CheckExerciseOwnership(exerciseID, userID); err != nil {
+			return err
+		}
+	}
+	return s.repo.DeleteSection(sectionID)
+}
+
+// DeleteQuestionOption deletes a question option
+func (s *ExerciseService) DeleteQuestionOption(questionID, optionID uuid.UUID, userID uuid.UUID, userRole string) error {
+	if userRole != "admin" {
+		exerciseID, err := s.repo.GetExerciseIDByQuestionID(questionID)
+		if err != nil {
+			return err
+		}
+		if err := s.repo.CheckExerciseOwnership(exerciseID, userID); err != nil {
+			return err
+		}
+	}
+	return s.repo.DeleteQuestionOption(questionID, optionID)
+}
+
+// UpdateQuestionAnswer updates answer details
+func (s *ExerciseService) UpdateQuestionAnswer(questionID, answerID uuid.UUID, req *models.UpdateQuestionAnswerRequest, userID uuid.UUID, userRole string) error {
+	if userRole != "admin" {
+		exerciseID, err := s.repo.GetExerciseIDByQuestionID(questionID)
+		if err != nil {
+			return err
+		}
+		if err := s.repo.CheckExerciseOwnership(exerciseID, userID); err != nil {
+			return err
+		}
+	}
+	return s.repo.UpdateQuestionAnswer(questionID, answerID, req)
+}
+
+// DeleteQuestionAnswer deletes a question answer
+func (s *ExerciseService) DeleteQuestionAnswer(questionID, answerID uuid.UUID, userID uuid.UUID, userRole string) error {
+	if userRole != "admin" {
+		exerciseID, err := s.repo.GetExerciseIDByQuestionID(questionID)
+		if err != nil {
+			return err
+		}
+		if err := s.repo.CheckExerciseOwnership(exerciseID, userID); err != nil {
+			return err
+		}
+	}
+	return s.repo.DeleteQuestionAnswer(questionID, answerID)
+}
+
 // PublishExercise publishes an exercise
-func (s *ExerciseService) PublishExercise(exerciseID, userID uuid.UUID) error {
+func (s *ExerciseService) PublishExercise(exerciseID, userID uuid.UUID, userRole string) error {
 	// Verify ownership
-	if err := s.repo.CheckExerciseOwnership(exerciseID, userID); err != nil {
-		return err
+	if userRole != "admin" {
+		if err := s.repo.CheckExerciseOwnership(exerciseID, userID); err != nil {
+			return err
+		}
 	}
 	return s.repo.PublishExercise(exerciseID)
 }
 
 // UnpublishExercise unpublishes an exercise
-func (s *ExerciseService) UnpublishExercise(exerciseID, userID uuid.UUID) error {
+func (s *ExerciseService) UnpublishExercise(exerciseID, userID uuid.UUID, userRole string) error {
 	// Verify ownership
-	if err := s.repo.CheckExerciseOwnership(exerciseID, userID); err != nil {
-		return err
+	if userRole != "admin" {
+		if err := s.repo.CheckExerciseOwnership(exerciseID, userID); err != nil {
+			return err
+		}
 	}
 	return s.repo.UnpublishExercise(exerciseID)
 }
@@ -321,7 +444,7 @@ func (s *ExerciseService) handleExerciseCompletion(submissionID uuid.UUID) {
 	timeMinutes := 0
 	if submission.TimeSpentSeconds > 0 {
 		timeMinutes = submission.TimeSpentSeconds / 60
-		log.Printf("[Exercise-Service] Using stored time_spent: %d seconds (%d minutes)", 
+		log.Printf("[Exercise-Service] Using stored time_spent: %d seconds (%d minutes)",
 			submission.TimeSpentSeconds, timeMinutes)
 	} else if submission.CompletedAt != nil {
 		// FALLBACK: Calculate elapsed time if time_spent not available

@@ -33,8 +33,33 @@ export default function AdminUsersPage() {
   const fetchUsers = async () => {
     try {
       setLoading(true)
-      const response = await adminApi.getUsers(filters)
-      setUsers(Array.isArray(response.data) ? response.data : [])
+      
+      // Build query params
+      const params: {
+        page?: number
+        limit?: number
+        role?: string
+        status?: string
+        search?: string
+      } = {
+        page: 1,
+        limit: 100,
+      }
+
+      if (filters.role !== 'all') {
+        params.role = filters.role
+      }
+
+      if (filters.status !== 'all') {
+        params.status = filters.status
+      }
+
+      if (filters.search) {
+        params.search = filters.search
+      }
+
+      const response = await adminApi.getUsers(params)
+      setUsers(response.data)
     } catch (error) {
       console.error("Failed to fetch users:", error)
       toast({
@@ -62,15 +87,16 @@ export default function AdminUsersPage() {
   }
 
   const handleDelete = async (userId: string) => {
-    if (!confirm(t('are_you_sure_delete_user'))) return
-
     try {
       await adminApi.deleteUser(userId)
+      
+      // Update state immediately
+      setUsers(users.filter(u => u.id !== userId))
+      
       toast({
         title: t('success'),
         description: t('user_deleted_successfully'),
       })
-      fetchUsers()
     } catch (error) {
       toast({
         title: t('error'),
@@ -80,15 +106,39 @@ export default function AdminUsersPage() {
     }
   }
 
-  const handleToggleStatus = async (userId: string, status: "active" | "suspended") => {
+  const handleToggleStatus = async (userId: string, currentStatus: string) => {
+    const newStatus = currentStatus === "active" ? "suspended" : "active"
+    
     try {
-      await adminApi.updateUser(userId, { status })
+      const updatedUser = await adminApi.updateUserStatus(userId, newStatus)
+      
+      console.log('[handleToggleStatus] Updated user:', {
+        userId,
+        currentStatus,
+        newStatus,
+        backendResponse: updatedUser
+      })
+      
+      // Update state immediately with full user data from backend
+      setUsers(prevUsers => prevUsers.map(u => {
+        if (u.id === userId) {
+          const updated = {
+            ...u,
+            is_active: updatedUser.is_active,
+            status: updatedUser.is_active ? 'active' : 'suspended'
+          }
+          console.log('[handleToggleStatus] Updated user in state:', updated)
+          return updated
+        }
+        return u
+      }))
+      
       toast({
         title: t('success'),
-        description: status === "active" ? t('user_activated_successfully') : t('user_suspended_successfully'),
+        description: newStatus === "active" ? t('user_activated_successfully') : t('user_suspended_successfully'),
       })
-      fetchUsers()
     } catch (error) {
+      console.error('[handleToggleStatus] Error:', error)
       toast({
         title: t('error'),
         description: t('failed_to_update_user_status'),
@@ -100,25 +150,28 @@ export default function AdminUsersPage() {
   const handleSubmit = async (data: Partial<User>) => {
     try {
       if (editingUser) {
-        await adminApi.updateUser(editingUser.id, data)
+        const updatedUser = await adminApi.updateUser(editingUser.id, data)
+        
+        // Update state immediately with the backend response
+        setUsers(prevUsers => prevUsers.map(u => 
+          u.id === editingUser.id 
+            ? { ...u, ...updatedUser }
+            : u
+        ))
+        
         toast({
           title: t('success'),
           description: t('user_updated_successfully'),
         })
-      } else {
-        await adminApi.createUser(data)
-        toast({
-          title: t('success'),
-          description: t('user_created_successfully'),
-        })
       }
+      // Note: Create user API not implemented in backend yet
       setModalOpen(false)
       setEditingUser(null)
-      fetchUsers()
     } catch (error) {
+      console.error("[Update User Error]", error)
       toast({
         title: t('error'),
-        description: editingUser ? t('failed_to_update_user') : t('failed_to_create_user'),
+        description: t('failed_to_update_user'),
         variant: "destructive",
       })
     }

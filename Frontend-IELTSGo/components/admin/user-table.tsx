@@ -38,11 +38,21 @@ export function UserTable({ users, onEdit, onDelete, onToggleStatus }: UserTable
         return "bg-green-500"
       case "suspended":
         return "bg-red-500"
-      case "pending":
+      case "locked":
         return "bg-yellow-500"
       default:
         return "bg-gray-500"
     }
+  }
+
+  const getUserStatus = (user: User): "active" | "suspended" | "locked" => {
+    if (!user.is_active) return "suspended"
+    // Could check locked_until here if needed
+    return "active"
+  }
+
+  const getUserName = (user: User): string => {
+    return user.full_name || user.name || user.email.split('@')[0]
   }
 
   return (
@@ -60,28 +70,38 @@ export function UserTable({ users, onEdit, onDelete, onToggleStatus }: UserTable
           </TableRow>
         </TableHeader>
         <TableBody>
-          {users.map((user) => (
+          {users.map((user) => {
+            const userName = getUserName(user)
+            const userStatus = getUserStatus(user)
+            
+            return (
             <TableRow key={user.id}>
               <TableCell>
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                    <span className="text-sm font-semibold text-primary">{user.name.charAt(0).toUpperCase()}</span>
+                    <span className="text-sm font-semibold text-primary">
+                      {userName.charAt(0).toUpperCase()}
+                    </span>
                   </div>
                   <div>
-                    <div className="font-medium">{user.name}</div>
-                    <div className="text-sm text-muted-foreground">ID: {user.id}</div>
+                    <div className="font-medium">{userName}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {user.phone || `ID: ${user.id.slice(0, 8)}...`}
+                    </div>
                   </div>
                 </div>
               </TableCell>
               <TableCell>{user.email}</TableCell>
               <TableCell>
-                <Badge className={getRoleBadgeColor(user.role)}>{user.role}</Badge>
+                <Badge className={getRoleBadgeColor(user.role || "student")}>
+                  {user.role || "student"}
+                </Badge>
               </TableCell>
               <TableCell>
-                <Badge className={getStatusBadgeColor(user.status || "active")}>{user.status || "active"}</Badge>
+                <Badge className={getStatusBadgeColor(userStatus)}>{userStatus}</Badge>
               </TableCell>
-              <TableCell>{formatDate(user.createdAt)}</TableCell>
-              <TableCell>{user.lastLoginAt ? formatDate(user.lastLoginAt) : "Never"}</TableCell>
+              <TableCell>{formatDate(user.created_at)}</TableCell>
+              <TableCell>{user.last_login_at ? formatDate(user.last_login_at) : "Never"}</TableCell>
               <TableCell className="text-right">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -95,9 +115,9 @@ export function UserTable({ users, onEdit, onDelete, onToggleStatus }: UserTable
                       Edit
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      onClick={() => onToggleStatus(user.id, user.status === "active" ? "suspended" : "active")}
+                      onClick={() => onToggleStatus(user.id, userStatus)}
                     >
-                      {user.status === "active" ? (
+                      {userStatus === "active" ? (
                         <>
                           <Ban className="w-4 h-4 mr-2" />
                           Suspend
@@ -117,7 +137,7 @@ export function UserTable({ users, onEdit, onDelete, onToggleStatus }: UserTable
                 </DropdownMenu>
               </TableCell>
             </TableRow>
-          ))}
+          )})}
         </TableBody>
       </Table>
     </div>

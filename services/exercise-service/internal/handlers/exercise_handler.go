@@ -31,6 +31,102 @@ func NewExerciseHandler(service *service.ExerciseService) *ExerciseHandler {
 	return &ExerciseHandler{service: service}
 }
 
+// GetMyExercises handles GET /api/v1/admin/exercises (instructor's exercises only)
+func (h *ExerciseHandler) GetMyExercises(c *gin.Context) {
+	// Get instructor ID from JWT context
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "UNAUTHORIZED",
+				Message: "User ID not found in context",
+			},
+		})
+		return
+	}
+
+	// JWT claims return string, need to parse to UUID
+	var instructorID uuid.UUID
+	var err error
+
+	switch v := userID.(type) {
+	case string:
+		instructorID, err = uuid.Parse(v)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, Response{
+				Success: false,
+				Error: &ErrorInfo{
+					Code:    "INVALID_USER_ID",
+					Message: "Invalid user ID format",
+					Details: err.Error(),
+				},
+			})
+			return
+		}
+	case uuid.UUID:
+		instructorID = v
+	default:
+		c.JSON(http.StatusInternalServerError, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "INVALID_USER_ID",
+				Message: "User ID type not supported",
+			},
+		})
+		return
+	}
+
+	query := &models.ExerciseListQuery{}
+
+	// Parse query params
+	query.Page, _ = strconv.Atoi(c.DefaultQuery("page", "1"))
+	query.Limit, _ = strconv.Atoi(c.DefaultQuery("limit", "100"))
+
+	// Parse filters
+	skillTypeParam := c.Query("skill_type")
+	if skillTypeParam != "" {
+		query.SkillType = skillTypeParam
+	}
+	difficultyParam := c.Query("difficulty")
+	if difficultyParam != "" {
+		query.Difficulty = difficultyParam
+	}
+	exerciseTypeParam := c.Query("exercise_type")
+	if exerciseTypeParam != "" {
+		query.ExerciseType = exerciseTypeParam
+	}
+	query.Search = c.Query("search")
+	query.SortBy = c.DefaultQuery("sort_by", "newest")
+	query.SortOrder = c.DefaultQuery("sort_order", "desc")
+
+	// Filter by instructor
+	query.CreatedBy = &instructorID
+
+	exercises, total, err := h.service.GetExercises(query)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "GET_EXERCISES_ERROR",
+				Message: "Failed to get exercises",
+				Details: err.Error(),
+			},
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, Response{
+		Success: true,
+		Data: map[string]interface{}{
+			"exercises": exercises,
+			"total":     total,
+			"page":      query.Page,
+			"limit":     query.Limit,
+		},
+	})
+}
+
 // GetExercises handles GET /api/v1/exercises
 func (h *ExerciseHandler) GetExercises(c *gin.Context) {
 	query := &models.ExerciseListQuery{}
@@ -61,6 +157,11 @@ func (h *ExerciseHandler) GetExercises(c *gin.Context) {
 	if isFree := c.Query("is_free"); isFree != "" {
 		isFreeVal := isFree == "true"
 		query.IsFree = &isFreeVal
+	}
+
+	if isPublished := c.Query("is_published"); isPublished != "" {
+		isPublishedVal := isPublished == "true"
+		query.IsPublished = &isPublishedVal
 	}
 
 	if courseID := c.Query("course_id"); courseID != "" {
@@ -134,6 +235,42 @@ func (h *ExerciseHandler) GetExerciseByID(c *gin.Context) {
 		return
 	}
 
+	c.JSON(http.StatusOK, Response{
+		Success: true,
+		Data:    exercise,
+	})
+}
+
+// GetExerciseByIDAdmin handles GET /api/v1/admin/exercises/:id (includes unpublished)
+func (h *ExerciseHandler) GetExerciseByIDAdmin(c *gin.Context) {
+	log.Printf("[GetExerciseByIDAdmin] Called for exercise ID: %s", c.Param("id"))
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		log.Printf("[GetExerciseByIDAdmin] Invalid ID: %v", err)
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "INVALID_ID",
+				Message: "Invalid exercise ID",
+			},
+		})
+		return
+	}
+
+	exercise, err := h.service.GetExerciseByIDAdmin(id)
+	if err != nil {
+		log.Printf("[GetExerciseByIDAdmin] Service error: %v", err)
+		c.JSON(http.StatusNotFound, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "EXERCISE_NOT_FOUND",
+				Message: "Exercise not found",
+			},
+		})
+		return
+	}
+
+	log.Printf("[GetExerciseByIDAdmin] Success for exercise: %s", exercise.Exercise.Title)
 	c.JSON(http.StatusOK, Response{
 		Success: true,
 		Data:    exercise,
@@ -345,6 +482,7 @@ func (h *ExerciseHandler) CreateExercise(c *gin.Context) {
 
 	var req models.CreateExerciseRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("[CreateExercise] Bind error: %v", err)
 		c.JSON(http.StatusBadRequest, Response{
 			Success: false,
 			Error: &ErrorInfo{
@@ -356,9 +494,12 @@ func (h *ExerciseHandler) CreateExercise(c *gin.Context) {
 		return
 	}
 
+	log.Printf("[CreateExercise] Request data: %+v", req)
+
 	userUUID, _ := uuid.Parse(userID.(string))
 	exercise, err := h.service.CreateExercise(&req, userUUID)
 	if err != nil {
+		log.Printf("[CreateExercise] Service error: %v", err)
 		c.JSON(http.StatusInternalServerError, Response{
 			Success: false,
 			Error: &ErrorInfo{
@@ -392,6 +533,7 @@ func (h *ExerciseHandler) UpdateExercise(c *gin.Context) {
 
 	var req models.UpdateExerciseRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("[UpdateExercise] Bind error: %v", err)
 		c.JSON(http.StatusBadRequest, Response{
 			Success: false,
 			Error: &ErrorInfo{
@@ -403,8 +545,16 @@ func (h *ExerciseHandler) UpdateExercise(c *gin.Context) {
 		return
 	}
 
-	err = h.service.UpdateExercise(id, &req)
+	log.Printf("[UpdateExercise] Request data: %+v", req)
+
+	userID, _ := c.Get("user_id")
+	userUUID, _ := uuid.Parse(userID.(string))
+	role, _ := c.Get("role")
+	userRole := role.(string)
+
+	err = h.service.UpdateExercise(id, &req, userUUID, userRole)
 	if err != nil {
+		log.Printf("[UpdateExercise] Service error: %v", err)
 		c.JSON(http.StatusInternalServerError, Response{
 			Success: false,
 			Error: &ErrorInfo{
@@ -438,7 +588,12 @@ func (h *ExerciseHandler) DeleteExercise(c *gin.Context) {
 		return
 	}
 
-	err = h.service.DeleteExercise(id)
+	userID, _ := c.Get("user_id")
+	userUUID, _ := uuid.Parse(userID.(string))
+	role, _ := c.Get("role")
+	userRole := role.(string)
+
+	err = h.service.DeleteExercise(id, userUUID, userRole)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, Response{
 			Success: false,
@@ -489,7 +644,10 @@ func (h *ExerciseHandler) CreateSection(c *gin.Context) {
 		return
 	}
 
-	section, err := h.service.CreateSection(exerciseID, &req, userUUID)
+	role, _ := c.Get("role")
+	userRole := role.(string)
+
+	section, err := h.service.CreateSection(exerciseID, &req, userUUID, userRole)
 	if err != nil {
 		statusCode := http.StatusInternalServerError
 		if err.Error() == "exercise not found" {
@@ -531,7 +689,10 @@ func (h *ExerciseHandler) CreateQuestion(c *gin.Context) {
 		return
 	}
 
-	question, err := h.service.CreateQuestion(&req, userUUID)
+	role, _ := c.Get("role")
+	userRole := role.(string)
+
+	question, err := h.service.CreateQuestion(&req, userUUID, userRole)
 	if err != nil {
 		statusCode := http.StatusInternalServerError
 		if err.Error() == "exercise not found" {
@@ -585,7 +746,10 @@ func (h *ExerciseHandler) CreateQuestionOption(c *gin.Context) {
 		return
 	}
 
-	option, err := h.service.CreateQuestionOption(questionID, &req, userUUID)
+	role, _ := c.Get("role")
+	userRole := role.(string)
+
+	option, err := h.service.CreateQuestionOption(questionID, &req, userUUID, userRole)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, Response{
 			Success: false,
@@ -634,7 +798,10 @@ func (h *ExerciseHandler) CreateQuestionAnswer(c *gin.Context) {
 		return
 	}
 
-	answer, err := h.service.CreateQuestionAnswer(questionID, &req, userUUID)
+	role, _ := c.Get("role")
+	userRole := role.(string)
+
+	answer, err := h.service.CreateQuestionAnswer(questionID, &req, userUUID, userRole)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, Response{
 			Success: false,
@@ -670,7 +837,10 @@ func (h *ExerciseHandler) PublishExercise(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 	userUUID, _ := uuid.Parse(userID.(string))
 
-	if err := h.service.PublishExercise(exerciseID, userUUID); err != nil {
+	role, _ := c.Get("role")
+	userRole := role.(string)
+
+	if err := h.service.PublishExercise(exerciseID, userUUID, userRole); err != nil {
 		c.JSON(http.StatusInternalServerError, Response{
 			Success: false,
 			Error: &ErrorInfo{
@@ -707,7 +877,10 @@ func (h *ExerciseHandler) UnpublishExercise(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 	userUUID, _ := uuid.Parse(userID.(string))
 
-	if err := h.service.UnpublishExercise(exerciseID, userUUID); err != nil {
+	role, _ := c.Get("role")
+	userRole := role.(string)
+
+	if err := h.service.UnpublishExercise(exerciseID, userUUID, userRole); err != nil {
 		c.JSON(http.StatusInternalServerError, Response{
 			Success: false,
 			Error: &ErrorInfo{
@@ -1149,6 +1322,317 @@ func (h *ExerciseHandler) SubmitExercise(c *gin.Context) {
 		Data: gin.H{
 			"message":       "Exercise submitted successfully",
 			"submission_id": submissionID,
+		},
+	})
+}
+
+// UpdateQuestion handles PUT /api/v1/admin/questions/:id
+func (h *ExerciseHandler) UpdateQuestion(c *gin.Context) {
+	questionID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "INVALID_QUESTION_ID",
+				Message: "Invalid question ID format",
+				Details: err.Error(),
+			},
+		})
+		return
+	}
+
+	var req models.UpdateQuestionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "INVALID_REQUEST",
+				Message: "Invalid request body",
+				Details: err.Error(),
+			},
+		})
+		return
+	}
+
+	userID, _ := c.Get("user_id")
+	userUUID, _ := uuid.Parse(userID.(string))
+	role, _ := c.Get("role")
+	userRole := role.(string)
+
+	err = h.service.UpdateQuestion(questionID, &req, userUUID, userRole)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "UPDATE_QUESTION_FAILED",
+				Message: "Failed to update question",
+				Details: err.Error(),
+			},
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, Response{
+		Success: true,
+		Data: gin.H{
+			"message": "Question updated successfully",
+		},
+	})
+}
+
+// DeleteQuestion handles DELETE /api/v1/admin/questions/:id
+func (h *ExerciseHandler) DeleteQuestion(c *gin.Context) {
+	questionID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "INVALID_QUESTION_ID",
+				Message: "Invalid question ID format",
+				Details: err.Error(),
+			},
+		})
+		return
+	}
+
+	userID, _ := c.Get("user_id")
+	userUUID, _ := uuid.Parse(userID.(string))
+	role, _ := c.Get("role")
+	userRole := role.(string)
+
+	err = h.service.DeleteQuestion(questionID, userUUID, userRole)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "DELETE_QUESTION_FAILED",
+				Message: "Failed to delete question",
+				Details: err.Error(),
+			},
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, Response{
+		Success: true,
+		Data: gin.H{
+			"message": "Question deleted successfully",
+		},
+	})
+}
+
+// DeleteSection handles DELETE /api/v1/admin/sections/:id
+func (h *ExerciseHandler) DeleteSection(c *gin.Context) {
+	sectionID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "INVALID_SECTION_ID",
+				Message: "Invalid section ID format",
+				Details: err.Error(),
+			},
+		})
+		return
+	}
+
+	userID, _ := c.Get("user_id")
+	userUUID, _ := uuid.Parse(userID.(string))
+	role, _ := c.Get("role")
+	userRole := role.(string)
+
+	err = h.service.DeleteSection(sectionID, userUUID, userRole)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "DELETE_SECTION_FAILED",
+				Message: "Failed to delete section",
+				Details: err.Error(),
+			},
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, Response{
+		Success: true,
+		Data: gin.H{
+			"message": "Section deleted successfully",
+		},
+	})
+}
+
+// DeleteQuestionOption handles DELETE /api/v1/admin/questions/:id/options/:option_id
+func (h *ExerciseHandler) DeleteQuestionOption(c *gin.Context) {
+	questionID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "INVALID_QUESTION_ID",
+				Message: "Invalid question ID format",
+				Details: err.Error(),
+			},
+		})
+		return
+	}
+
+	optionID, err := uuid.Parse(c.Param("option_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "INVALID_OPTION_ID",
+				Message: "Invalid option ID format",
+				Details: err.Error(),
+			},
+		})
+		return
+	}
+
+	userID, _ := c.Get("user_id")
+	userUUID, _ := uuid.Parse(userID.(string))
+	role, _ := c.Get("role")
+	userRole := role.(string)
+
+	err = h.service.DeleteQuestionOption(questionID, optionID, userUUID, userRole)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "DELETE_OPTION_FAILED",
+				Message: "Failed to delete option",
+				Details: err.Error(),
+			},
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, Response{
+		Success: true,
+		Data: gin.H{
+			"message": "Option deleted successfully",
+		},
+	})
+}
+
+// UpdateQuestionAnswer handles PUT /api/v1/admin/questions/:id/answers/:answer_id
+func (h *ExerciseHandler) UpdateQuestionAnswer(c *gin.Context) {
+	questionID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "INVALID_QUESTION_ID",
+				Message: "Invalid question ID format",
+				Details: err.Error(),
+			},
+		})
+		return
+	}
+
+	answerID, err := uuid.Parse(c.Param("answer_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "INVALID_ANSWER_ID",
+				Message: "Invalid answer ID format",
+				Details: err.Error(),
+			},
+		})
+		return
+	}
+
+	var req models.UpdateQuestionAnswerRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "INVALID_REQUEST",
+				Message: "Invalid request body",
+				Details: err.Error(),
+			},
+		})
+		return
+	}
+
+	userID, _ := c.Get("user_id")
+	userUUID, _ := uuid.Parse(userID.(string))
+	role, _ := c.Get("role")
+	userRole := role.(string)
+
+	err = h.service.UpdateQuestionAnswer(questionID, answerID, &req, userUUID, userRole)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "UPDATE_ANSWER_FAILED",
+				Message: "Failed to update answer",
+				Details: err.Error(),
+			},
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, Response{
+		Success: true,
+		Data: gin.H{
+			"message": "Answer updated successfully",
+		},
+	})
+}
+
+// DeleteQuestionAnswer handles DELETE /api/v1/admin/questions/:id/answers/:answer_id
+func (h *ExerciseHandler) DeleteQuestionAnswer(c *gin.Context) {
+	questionID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "INVALID_QUESTION_ID",
+				Message: "Invalid question ID format",
+				Details: err.Error(),
+			},
+		})
+		return
+	}
+
+	answerID, err := uuid.Parse(c.Param("answer_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "INVALID_ANSWER_ID",
+				Message: "Invalid answer ID format",
+				Details: err.Error(),
+			},
+		})
+		return
+	}
+
+	userID, _ := c.Get("user_id")
+	userUUID, _ := uuid.Parse(userID.(string))
+	role, _ := c.Get("role")
+	userRole := role.(string)
+
+	err = h.service.DeleteQuestionAnswer(questionID, answerID, userUUID, userRole)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "DELETE_ANSWER_FAILED",
+				Message: "Failed to delete answer",
+				Details: err.Error(),
+			},
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, Response{
+		Success: true,
+		Data: gin.H{
+			"message": "Answer deleted successfully",
 		},
 	})
 }

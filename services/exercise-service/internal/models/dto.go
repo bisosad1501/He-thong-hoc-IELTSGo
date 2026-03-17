@@ -10,8 +10,10 @@ type ExerciseListQuery struct {
 	Difficulty      string     `form:"difficulty"`    // easy, medium, hard
 	ExerciseType    string     `form:"exercise_type"` // practice, mock_test, full_test
 	IsFree          *bool      `form:"is_free"`
+	IsPublished     *bool      `form:"is_published"`
 	CourseID        *uuid.UUID `form:"course_id"`
 	ModuleID        *uuid.UUID `form:"module_id"`
+	CreatedBy       *uuid.UUID `form:"created_by"`        // Filter by instructor/creator
 	CourseLevelOnly bool       `form:"course_level_only"` // If true, only return exercises with course_id but module_id = NULL
 	Search          string     `form:"search"`
 	SortBy          string     `form:"sort_by"`    // newest, popular, difficulty, title
@@ -30,10 +32,11 @@ type SectionWithQuestions struct {
 	Questions []QuestionWithOptions `json:"questions"`
 }
 
-// QuestionWithOptions includes question with its options
+// QuestionWithOptions includes question with its options and answers
 type QuestionWithOptions struct {
 	Question *Question        `json:"question"`
 	Options  []QuestionOption `json:"options,omitempty"`
+	Answers  []QuestionAnswer `json:"answers,omitempty"`
 }
 
 // SubmitAnswersRequest for submitting exercise answers
@@ -98,18 +101,60 @@ type CreateExerciseRequest struct {
 	ModuleID             *uuid.UUID `json:"module_id"`
 	PassingScore         *float64   `json:"passing_score"`
 	IsFree               *bool      `json:"is_free"`
+
+	// Writing fields
+	WritingPromptText      *string `json:"writing_prompt_text"`
+	WritingTaskType        *int    `json:"writing_task_type"`
+	WritingVisualURL       *string `json:"writing_visual_url"`
+	WritingVisualType      *string `json:"writing_visual_type"`
+	WritingWordRequirement *int    `json:"writing_word_requirement"`
+
+	// Speaking fields
+	SpeakingPromptText             *string  `json:"speaking_prompt_text"`
+	SpeakingPartNumber             *int     `json:"speaking_part_number"`
+	SpeakingCueCardTopic           *string  `json:"speaking_cue_card_topic"`
+	SpeakingCueCardPoints          []string `json:"speaking_cue_card_points"`
+	SpeakingPreparationTimeSeconds *int     `json:"speaking_preparation_time_seconds"`
+	SpeakingResponseTimeSeconds    *int     `json:"speaking_response_time_seconds"`
+	SpeakingFollowUpQuestions      []string `json:"speaking_follow_up_questions"`
+
+	// Reading fields
+	IELTSTestType *string `json:"ielts_test_type"`
 }
 
 // UpdateExerciseRequest for updating exercise
 type UpdateExerciseRequest struct {
 	Title            *string  `json:"title"`
 	Description      *string  `json:"description"`
+	ExerciseType     *string  `json:"exercise_type"`
 	Difficulty       *string  `json:"difficulty"`
+	IELTSLevel       *string  `json:"ielts_level"`
 	TimeLimitMinutes *int     `json:"time_limit_minutes"`
 	ThumbnailURL     *string  `json:"thumbnail_url"`
 	PassingScore     *float64 `json:"passing_score"`
 	IsFree           *bool    `json:"is_free"`
 	IsPublished      *bool    `json:"is_published"`
+	AudioURL         *string  `json:"audio_url"`
+
+	SkillType *string    `json:"skill_type"`
+	CourseID  *uuid.UUID `json:"course_id"`
+	ModuleID  *uuid.UUID `json:"module_id"`
+
+	// Writing fields
+	WritingPromptText      *string `json:"writing_prompt_text"`
+	WritingTaskType        *int    `json:"writing_task_type"`
+	WritingVisualURL       *string `json:"writing_visual_url"`
+	WritingVisualType      *string `json:"writing_visual_type"`
+	WritingWordRequirement *int    `json:"writing_word_requirement"`
+
+	// Speaking fields
+	SpeakingPromptText             *string  `json:"speaking_prompt_text"`
+	SpeakingPartNumber             *int     `json:"speaking_part_number"`
+	SpeakingCueCardTopic           *string  `json:"speaking_cue_card_topic"`
+	SpeakingCueCardPoints          []string `json:"speaking_cue_card_points"`
+	SpeakingPreparationTimeSeconds *int     `json:"speaking_preparation_time_seconds"`
+	SpeakingResponseTimeSeconds    *int     `json:"speaking_response_time_seconds"`
+	SpeakingFollowUpQuestions      []string `json:"speaking_follow_up_questions"`
 }
 
 // CreateSectionRequest for creating exercise sections
@@ -159,8 +204,22 @@ type CreateQuestionOptionRequest struct {
 type CreateQuestionAnswerRequest struct {
 	AnswerText         string   `json:"answer_text" binding:"required"`
 	AlternativeAnswers []string `json:"alternative_answers"`
-	IsCaseSensitive    bool     `json:"is_case_sensitive"`
-	MatchingOrder      *int     `json:"matching_order"`
+}
+
+// UpdateQuestionRequest for updating question details
+type UpdateQuestionRequest struct {
+	QuestionText *string  `json:"question_text"`
+	QuestionType *string  `json:"question_type"`
+	Points       *float64 `json:"points"`
+	Difficulty   *string  `json:"difficulty"`
+	Explanation  *string  `json:"explanation"`
+	Tips         *string  `json:"tips"`
+}
+
+// UpdateQuestionAnswerRequest for updating answer details
+type UpdateQuestionAnswerRequest struct {
+	AnswerText         *string   `json:"answer_text"`
+	AlternativeAnswers *[]string `json:"alternative_answers"`
 }
 
 // MySubmissionsQuery for filtering user submissions

@@ -10,7 +10,7 @@ import (
 type User struct {
 	ID       uuid.UUID `db:"id" json:"id"`
 	Email    string    `db:"email" json:"email"`
-    Password *string   `db:"password_hash" json:"-"`
+	Password *string   `db:"password_hash" json:"-"`
 	Phone    *string   `db:"phone" json:"phone,omitempty"`
 
 	// OAuth fields
@@ -29,6 +29,9 @@ type User struct {
 	CreatedAt time.Time  `db:"created_at" json:"created_at"`
 	UpdatedAt time.Time  `db:"updated_at" json:"updated_at"`
 	DeletedAt *time.Time `db:"deleted_at" json:"-"`
+
+	// Computed field (not in database)
+	Role string `db:"-" json:"role,omitempty"`
 }
 
 // Role represents a user role

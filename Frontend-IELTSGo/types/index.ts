@@ -2,13 +2,28 @@
 export interface User {
   id: string
   email: string
-  fullName: string
+  phone?: string
+  role?: "student" | "instructor" | "admin"
+  is_active: boolean
+  is_verified: boolean
+  email_verified_at?: string
+  last_login_at?: string
+  created_at: string
+  updated_at: string
+
+  // Optional fields for profile (from user-service)
+  full_name?: string
   avatar?: string
-  role: "student" | "instructor" | "admin"
-  targetBandScore?: number
+  target_band_score?: number
   bio?: string
-  createdAt: string
-  updatedAt: string
+
+  // Computed/display fields
+  status?: "active" | "suspended" | "locked"
+  name?: string // Alias for full_name or email
+  fullName?: string // Alias for compatibility
+  createdAt?: string // Alias for compatibility
+  updatedAt?: string // Alias for compatibility
+  lastLoginAt?: string // Alias for compatibility
 }
 
 // Auth Types (matching backend structure)
@@ -159,7 +174,7 @@ export interface Course {
   published_at?: string
   created_at: string
   updated_at: string
-  
+
   // Legacy support for frontend components
   thumbnail?: string
   skillType?: string
@@ -193,20 +208,19 @@ export interface Lesson {
   course_id: string
   title: string
   description?: string
-  content_type: 'video' | 'article' | 'mixed' | 'quiz'  // UPDATED: Added 'mixed', removed 'exercise'
+  content_type: 'video' | 'text' | 'quiz' | 'exercise'  // video, text, quiz, exercise (marker)
   duration_minutes?: number
   display_order: number
   is_free: boolean
   is_published: boolean
-  // completion_criteria removed - no longer needed
   total_completions: number
   average_time_spent?: number
   created_at: string
   updated_at: string
 
-  // Legacy support
+  // Legacy support (backwards compatibility)
   moduleId?: string
-  contentType?: "VIDEO" | "ARTICLE" | "MIXED" | "QUIZ"
+  contentType?: "VIDEO" | "TEXT" | "ARTICLE" | "QUIZ" | "EXERCISE"
   contentUrl?: string
   duration?: number
   order?: number
@@ -380,7 +394,7 @@ export interface Question {
   display_order: number
   created_at: string
   updated_at: string
-  
+
   // Legacy support
   exerciseId?: string
   sectionId?: string
@@ -747,27 +761,27 @@ export interface OfficialTestResult {
   user_id: string
   test_type: "full_test" | "mock_test" | "sectional_test" | "practice"
   skill_type: "listening" | "reading" | "writing" | "speaking"
-  
+
   // Source tracking
   source_service?: string
   source_table?: string
   source_id?: string
-  
+
   // Scores
   raw_score?: number
   total_questions?: number
   band_score: number
-  
+
   // AI evaluation (for writing/speaking)
   ai_model_name?: string
   evaluation_criteria?: Record<string, number>
-  
+
   // Timing
   time_spent_minutes?: number
   test_date: string
   test_duration_minutes?: number
   completion_status?: "completed" | "incomplete" | "abandoned"
-  
+
   // Metadata
   test_source?: string
   notes?: string
@@ -781,11 +795,11 @@ export interface PracticeActivity {
   user_id: string
   skill: "listening" | "reading" | "writing" | "speaking"
   activity_type: "drill" | "part_test" | "section_practice" | "question_set"
-  
+
   // Exercise reference
   exercise_id?: string
   exercise_title?: string
-  
+
   // Scoring
   score?: number
   max_score?: number
@@ -793,17 +807,17 @@ export interface PracticeActivity {
   correct_answers: number
   total_questions?: number
   accuracy_percentage?: number
-  
+
   // Timing
   time_spent_seconds?: number
   started_at?: string
   completed_at?: string
   completion_status?: "completed" | "incomplete" | "abandoned" | "in_progress"
-  
+
   // AI evaluation
   ai_evaluated?: boolean
   ai_feedback_summary?: string
-  
+
   // Metadata
   difficulty_level?: "beginner" | "intermediate" | "advanced" | "expert"
   tags?: string[]

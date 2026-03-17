@@ -29,6 +29,10 @@ type UpdateCourseRequest struct {
 	PreviewVideoURL  *string  `json:"preview_video_url"`
 	DurationHours    *float64 `json:"duration_hours"`
 	Price            *float64 `json:"price"`
+	Currency         *string  `json:"currency"`
+	SkillType        *string  `json:"skill_type"`
+	Level            *string  `json:"level"`
+	EnrollmentType   *string  `json:"enrollment_type"`
 	Status           *string  `json:"status"` // draft, published, archived
 	IsFeatured       *bool    `json:"is_featured"`
 	IsRecommended    *bool    `json:"is_recommended"`
@@ -48,7 +52,7 @@ type CreateLessonRequest struct {
 	ModuleID        uuid.UUID `json:"module_id" binding:"required"`
 	Title           string    `json:"title" binding:"required"`
 	Description     *string   `json:"description"`
-	ContentType     string    `json:"content_type" binding:"required"` // video, article, quiz, exercise
+	ContentType     string    `json:"content_type" binding:"required"` // video, text, quiz, exercise
 	DurationMinutes *int      `json:"duration_minutes"`
 	DisplayOrder    int       `json:"display_order"`
 	IsFree          bool      `json:"is_free"`
@@ -218,4 +222,16 @@ type AddVideoToLessonRequest struct {
 	Quality         *string `json:"quality"`                           // 720p, 1080p, 4k, etc.
 	FileSize        *int64  `json:"file_size"`                         // File size in bytes
 	DisplayOrder    *int    `json:"display_order"`                     // Order in lesson
+}
+
+// UpdateVideoRequest represents updating an existing video
+type UpdateVideoRequest struct {
+	Title           *string `json:"title"`
+	VideoProvider   *string `json:"video_provider"`   // youtube, bunny, vimeo, self-hosted
+	VideoID         *string `json:"video_id"`         // YouTube video ID or Bunny video library ID
+	VideoURL        *string `json:"video_url"`        // Full video URL
+	DurationSeconds *int    `json:"duration_seconds"` // Video duration in seconds
+	ThumbnailURL    *string `json:"thumbnail_url"`    // Video thumbnail URL
+	Quality         *string `json:"quality"`          // 720p, 1080p, 4k, etc.
+	DisplayOrder    *int    `json:"display_order"`    // Order in lesson
 }

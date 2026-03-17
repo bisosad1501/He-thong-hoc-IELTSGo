@@ -315,6 +315,15 @@ func SetupRoutes(r *gin.Engine, cfg *config.Config, authMiddleware *middleware.A
 	adminGroup.Use(authMiddleware.ValidateToken())
 	adminGroup.Use(authMiddleware.RequireRole("instructor", "admin"))
 	{
+		// User management (admin only - auth-service)
+		adminGroup.GET("/users", proxy.ReverseProxy(cfg.Services.AuthService))
+		adminGroup.GET("/users/:id", proxy.ReverseProxy(cfg.Services.AuthService))
+		adminGroup.PUT("/users/:id", proxy.ReverseProxy(cfg.Services.AuthService))
+		adminGroup.DELETE("/users/:id", proxy.ReverseProxy(cfg.Services.AuthService))
+		adminGroup.PUT("/users/:id/status", proxy.ReverseProxy(cfg.Services.AuthService))
+		adminGroup.POST("/users/:id/roles", proxy.ReverseProxy(cfg.Services.AuthService))
+		adminGroup.DELETE("/users/:id/roles/:role", proxy.ReverseProxy(cfg.Services.AuthService))
+
 		// Course management
 		adminGroup.POST("/courses", proxy.ReverseProxy(cfg.Services.CourseService))
 		adminGroup.PUT("/courses/:id", proxy.ReverseProxy(cfg.Services.CourseService))
@@ -323,26 +332,42 @@ func SetupRoutes(r *gin.Engine, cfg *config.Config, authMiddleware *middleware.A
 
 		// Module and lesson management
 		adminGroup.POST("/modules", proxy.ReverseProxy(cfg.Services.CourseService))
-		adminGroup.POST("/lessons", proxy.ReverseProxy(cfg.Services.CourseService))
+		adminGroup.PUT("/modules/:id", proxy.ReverseProxy(cfg.Services.CourseService))
+		adminGroup.DELETE("/modules/:id", proxy.ReverseProxy(cfg.Services.CourseService))
 
-		// Video management
-		adminGroup.POST("/lessons/:lesson_id/videos", proxy.ReverseProxy(cfg.Services.CourseService))
+		// Video management (must come before /lessons/:id to avoid route conflict)
+		adminGroup.POST("/lessons/:id/videos", proxy.ReverseProxy(cfg.Services.CourseService))
+		adminGroup.PUT("/lessons/:id/videos/:video_id", proxy.ReverseProxy(cfg.Services.CourseService))
+		adminGroup.DELETE("/lessons/:id/videos/:video_id", proxy.ReverseProxy(cfg.Services.CourseService))
+
+		// Lesson CRUD (must come after more specific /lessons/:id/videos routes)
+		adminGroup.POST("/lessons", proxy.ReverseProxy(cfg.Services.CourseService))
+		adminGroup.PUT("/lessons/:id", proxy.ReverseProxy(cfg.Services.CourseService))
+		adminGroup.DELETE("/lessons/:id", proxy.ReverseProxy(cfg.Services.CourseService))
 
 		// Exercise management
+		adminGroup.GET("/exercises", proxy.ReverseProxy(cfg.Services.ExerciseService)) // List my exercises
+		adminGroup.GET("/exercises/:id", proxy.ReverseProxy(cfg.Services.ExerciseService))
 		adminGroup.POST("/exercises", proxy.ReverseProxy(cfg.Services.ExerciseService))
 		adminGroup.PUT("/exercises/:id", proxy.ReverseProxy(cfg.Services.ExerciseService))
 		adminGroup.DELETE("/exercises/:id", proxy.ReverseProxy(cfg.Services.ExerciseService))
 		adminGroup.POST("/exercises/:id/publish", proxy.ReverseProxy(cfg.Services.ExerciseService))
 		adminGroup.POST("/exercises/:id/unpublish", proxy.ReverseProxy(cfg.Services.ExerciseService))
 		adminGroup.POST("/exercises/:id/sections", proxy.ReverseProxy(cfg.Services.ExerciseService))
+		adminGroup.DELETE("/sections/:id", proxy.ReverseProxy(cfg.Services.ExerciseService))
 		adminGroup.GET("/exercises/:id/analytics", proxy.ReverseProxy(cfg.Services.ExerciseService))
 		adminGroup.POST("/exercises/:id/tags", proxy.ReverseProxy(cfg.Services.ExerciseService))
 		adminGroup.DELETE("/exercises/:id/tags/:tag_id", proxy.ReverseProxy(cfg.Services.ExerciseService))
 
 		// Question management
 		adminGroup.POST("/questions", proxy.ReverseProxy(cfg.Services.ExerciseService))
+		adminGroup.PUT("/questions/:id", proxy.ReverseProxy(cfg.Services.ExerciseService))
+		adminGroup.DELETE("/questions/:id", proxy.ReverseProxy(cfg.Services.ExerciseService))
 		adminGroup.POST("/questions/:id/options", proxy.ReverseProxy(cfg.Services.ExerciseService))
-		adminGroup.POST("/questions/:id/answer", proxy.ReverseProxy(cfg.Services.ExerciseService))
+		adminGroup.DELETE("/questions/:id/options/:option_id", proxy.ReverseProxy(cfg.Services.ExerciseService))
+		adminGroup.POST("/questions/:id/answers", proxy.ReverseProxy(cfg.Services.ExerciseService))
+		adminGroup.PUT("/questions/:id/answers/:answer_id", proxy.ReverseProxy(cfg.Services.ExerciseService))
+		adminGroup.DELETE("/questions/:id/answers/:answer_id", proxy.ReverseProxy(cfg.Services.ExerciseService))
 
 		// Question Bank management
 		adminGroup.GET("/question-bank", proxy.ReverseProxy(cfg.Services.ExerciseService))

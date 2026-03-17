@@ -14,6 +14,8 @@ type RoleRepository interface {
 	FindByUserID(userID uuid.UUID) ([]models.Role, error)
 	AssignRoleToUser(userID uuid.UUID, roleID int, assignedBy *uuid.UUID) error
 	RemoveRoleFromUser(userID uuid.UUID, roleID int) error
+	AssignRole(userID uuid.UUID, roleID int) error
+	RevokeRole(userID uuid.UUID, roleID int) error
 }
 
 type roleRepository struct {
@@ -80,4 +82,14 @@ func (r *roleRepository) RemoveRoleFromUser(userID uuid.UUID, roleID int) error 
 	}
 
 	return nil
+}
+
+// AssignRole assigns a role to a user (admin operation)
+func (r *roleRepository) AssignRole(userID uuid.UUID, roleID int) error {
+	return r.AssignRoleToUser(userID, roleID, nil)
+}
+
+// RevokeRole revokes a role from a user (admin operation)
+func (r *roleRepository) RevokeRole(userID uuid.UUID, roleID int) error {
+	return r.RemoveRoleFromUser(userID, roleID)
 }

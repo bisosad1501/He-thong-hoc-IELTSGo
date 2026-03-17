@@ -49,10 +49,11 @@ export default function AdminNotificationsPage() {
 
   // Bulk Send Form State
   const [bulkForm, setBulkForm] = useState({
-    recipient: "all",
-    type: "email",
-    subject: "",
-    content: "",
+    recipient: "all", // UI helper for user selection
+    notificationType: "system" as "achievement" | "reminder" | "course_update" | "exercise_graded" | "system",
+    category: "info" as "info" | "success" | "warning" | "alert",
+    title: "",
+    message: "",
   })
 
   // Scheduled Notification Form State
@@ -73,18 +74,80 @@ export default function AdminNotificationsPage() {
   })
 
   const handleBulkSend = async () => {
-    setLoading(true)
-    try {
-      await adminApi.sendBulkNotification(bulkForm)
-      toast({
-        title: t('notifications_sent'),
-        description: t('bulk_notifications_sent_successfully'),
-      })
-      setBulkForm({ recipient: "all", type: "email", subject: "", content: "" })
-    } catch (error) {
+    if (!bulkForm.title.trim() || !bulkForm.message.trim()) {
       toast({
         title: t('error'),
-        description: t('failed_to_send_notifications'),
+        description: "Title and message are required",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setLoading(true)
+    try {
+      // Show loading toast
+      toast({
+        title: "Processing...",
+        description: "Fetching recipients and sending notifications...",
+      })
+
+      // Fetch user IDs based on recipient selection
+      let userIds: string[] = []
+      
+      if (bulkForm.recipient === "all") {
+        // Fetch all users
+        const usersResponse = await adminApi.getUsers({ page: 1, limit: 10000 })
+        userIds = usersResponse.data.map(user => user.id)
+      } else if (bulkForm.recipient === "students") {
+        const usersResponse = await adminApi.getUsers({ page: 1, limit: 10000, role: "student" })
+        userIds = usersResponse.data.map(user => user.id)
+      } else if (bulkForm.recipient === "instructors") {
+        const usersResponse = await adminApi.getUsers({ page: 1, limit: 10000, role: "instructor" })
+        userIds = usersResponse.data.map(user => user.id)
+      } else if (bulkForm.recipient === "active") {
+        const usersResponse = await adminApi.getUsers({ page: 1, limit: 10000, status: "active" })
+        userIds = usersResponse.data.map(user => user.id)
+      } else if (bulkForm.recipient === "inactive") {
+        const usersResponse = await adminApi.getUsers({ page: 1, limit: 10000, status: "inactive" })
+        userIds = usersResponse.data.map(user => user.id)
+      }
+
+      if (userIds.length === 0) {
+        toast({
+          title: t('error'),
+          description: "No users found for the selected recipient group",
+          variant: "destructive",
+        })
+        setLoading(false)
+        return
+      }
+
+      const result = await adminApi.sendBulkNotification({
+        user_ids: userIds,
+        type: bulkForm.notificationType,
+        category: bulkForm.category,
+        title: bulkForm.title,
+        message: bulkForm.message,
+      })
+      
+      // Show detailed success message
+      toast({
+        title: "✅ " + t('notifications_sent'),
+        description: `Successfully sent to ${result.success_count} out of ${result.total_users} users${result.failed_count > 0 ? ` (${result.failed_count} failed)` : ''}`,
+      })
+      
+      setBulkForm({ 
+        recipient: "all", 
+        notificationType: "system",
+        category: "info",
+        title: "", 
+        message: "" 
+      })
+    } catch (error: any) {
+      console.error("Bulk send error:", error)
+      toast({
+        title: "❌ " + t('error'),
+        description: error?.response?.data?.message || error?.message || t('failed_to_send_notifications'),
         variant: "destructive",
       })
     } finally {
@@ -95,12 +158,14 @@ export default function AdminNotificationsPage() {
   const handleSchedule = async () => {
     setLoading(true)
     try {
-      await adminApi.scheduleNotification(scheduleForm)
+      // TODO: Schedule notification not yet implemented in backend for admin
+      // await adminApi.scheduleNotification(scheduleForm)
       toast({
-        title: t('notification_scheduled'),
-        description: t('notification_scheduled_successfully'),
+        title: "Coming Soon",
+        description: "Schedule notification feature will be available soon",
+        variant: "default",
       })
-      setScheduleForm({ recipient: "all", type: "email", subject: "", content: "", scheduledAt: "" })
+      // setScheduleForm({ recipient: "all", type: "email", subject: "", content: "", scheduledAt: "" })
     } catch (error) {
       toast({
         title: t('error'),
@@ -186,25 +251,48 @@ export default function AdminNotificationsPage() {
 
                   <div className="space-y-2">
                     <Label>{t('notification_type')}</Label>
-                    <Select value={bulkForm.type} onValueChange={(value) => setBulkForm({ ...bulkForm, type: value })}>
+                    <Select 
+                      value={bulkForm.notificationType} 
+                      onValueChange={(value: any) => setBulkForm({ ...bulkForm, notificationType: value })}
+                    >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="email">{t('email')}</SelectItem>
-                        <SelectItem value="push">{t('push_notification')}</SelectItem>
-                        <SelectItem value="in-app">{t('in_app_notification')}</SelectItem>
+                        <SelectItem value="system">System</SelectItem>
+                        <SelectItem value="course_update">Course Update</SelectItem>
+                        <SelectItem value="exercise_graded">Exercise Graded</SelectItem>
+                        <SelectItem value="achievement">Achievement</SelectItem>
+                        <SelectItem value="reminder">Reminder</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
 
                 <div className="space-y-2">
+                  <Label>Category</Label>
+                  <Select 
+                    value={bulkForm.category} 
+                    onValueChange={(value: any) => setBulkForm({ ...bulkForm, category: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="info">Info</SelectItem>
+                      <SelectItem value="success">Success</SelectItem>
+                      <SelectItem value="warning">Warning</SelectItem>
+                      <SelectItem value="alert">Alert</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
                   <Label>{t('subject')}</Label>
                   <Input
-                    placeholder={t('enter_notification_subject')}
-                    value={bulkForm.subject}
-                    onChange={(e) => setBulkForm({ ...bulkForm, subject: e.target.value })}
+                    placeholder="Enter notification title"
+                    value={bulkForm.title}
+                    onChange={(e) => setBulkForm({ ...bulkForm, title: e.target.value })}
                   />
                 </div>
 
@@ -213,8 +301,8 @@ export default function AdminNotificationsPage() {
                   <Textarea
                     placeholder={t('enter_notification_message')}
                     rows={6}
-                    value={bulkForm.content}
-                    onChange={(e) => setBulkForm({ ...bulkForm, content: e.target.value })}
+                    value={bulkForm.message}
+                    onChange={(e) => setBulkForm({ ...bulkForm, message: e.target.value })}
                   />
                 </div>
 

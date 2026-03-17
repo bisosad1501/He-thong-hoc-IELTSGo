@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useToast } from "@/hooks/use-toast"
 import { instructorApi } from "@/lib/api/instructor"
 import { Loader2 } from "lucide-react"
 
@@ -19,6 +20,7 @@ interface CourseCreateModalProps {
 
 export function CourseCreateModal({ open, onOpenChange, onSuccess }: CourseCreateModalProps) {
   const router = useRouter()
+  const { toast } = useToast()
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     title: "",
@@ -36,7 +38,11 @@ export function CourseCreateModal({ open, onOpenChange, onSuccess }: CourseCreat
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!formData.title.trim()) {
-      alert("Please enter a course title")
+      toast({
+        title: "Validation Error",
+        description: "Please enter a course title",
+        variant: "destructive",
+      })
       return
     }
 
@@ -66,6 +72,11 @@ export function CourseCreateModal({ open, onOpenChange, onSuccess }: CourseCreat
 
       const newCourse = await instructorApi.createCourse(courseData)
       
+      toast({
+        title: "Success",
+        description: "Course created successfully",
+      })
+      
       // Reset form
       setFormData({
         title: "",
@@ -87,7 +98,11 @@ export function CourseCreateModal({ open, onOpenChange, onSuccess }: CourseCreat
       router.push(`/admin/courses/${(newCourse as any).id}`)
     } catch (error) {
       console.error("Failed to create course:", error)
-      alert("Failed to create course. Please try again.")
+      toast({
+        title: "Error",
+        description: "Failed to create course. Please try again.",
+        variant: "destructive",
+      })
     } finally {
       setLoading(false)
     }

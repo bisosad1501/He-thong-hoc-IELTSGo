@@ -9,6 +9,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -36,6 +43,7 @@ import { adminApi } from "@/lib/api/admin"
 import { useToast } from "@/hooks/use-toast"
 import { ModuleFormModal } from "@/components/admin/module-form-modal"
 import { LessonFormModal } from "@/components/admin/lesson-form-modal"
+import { VideoFormModal } from "@/components/admin/video-form-modal"
 
 interface Module {
   id: string
@@ -54,6 +62,14 @@ interface Lesson {
   duration_minutes?: number
   display_order: number
   is_free: boolean
+  videos?: Array<{
+    id: string
+    title: string
+    video_url: string
+    video_provider: string
+    video_id: string
+    duration_seconds?: number
+  }>
 }
 
 export default function AdminCourseDetailPage() {
@@ -67,7 +83,7 @@ export default function AdminCourseDetailPage() {
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set())
   const [editingModule, setEditingModule] = useState<string | null>(null)
   const [editingLesson, setEditingLesson] = useState<string | null>(null)
-  
+
   // Modal states
   const [moduleModalOpen, setModuleModalOpen] = useState(false)
   const [lessonModalOpen, setLessonModalOpen] = useState(false)
@@ -76,6 +92,14 @@ export default function AdminCourseDetailPage() {
   const [selectedModuleForLesson, setSelectedModuleForLesson] = useState<string | null>(null)
   const [addLessonDialogOpen, setAddLessonDialogOpen] = useState(false)
   const [newModuleId, setNewModuleId] = useState<string | null>(null)
+  const [videoModalOpen, setVideoModalOpen] = useState(false)
+  const [selectedLessonForVideo, setSelectedLessonForVideo] = useState<string | null>(null)
+  const [publishDialogOpen, setPublishDialogOpen] = useState(false)
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false)
+  const [deleteLessonDialogOpen, setDeleteLessonDialogOpen] = useState(false)
+  const [deleteLessonId, setDeleteLessonId] = useState<string | null>(null)
+  const [deleteModuleDialogOpen, setDeleteModuleDialogOpen] = useState(false)
+  const [deleteModuleId, setDeleteModuleId] = useState<string | null>(null)
 
   useEffect(() => {
     loadCourse()
@@ -86,8 +110,16 @@ export default function AdminCourseDetailPage() {
       setLoading(true)
       const response = await instructorApi.getCourse(params.id as string)
       const courseData = (response as any).course || response
+      const modulesData = ((response as any).modules || []).map((m: any) => ({
+        ...m.module,
+        lessons: (m.lessons || []).map((l: any) => ({
+          ...(l.lesson || l),
+          videos: l.videos || []
+        })),
+        exercises: m.exercises || []
+      }))
       setCourse(courseData)
-      setModules((response as any).modules || [])
+      setModules(modulesData)
     } catch (error) {
       console.error("Failed to load course:", error)
       toast({
@@ -108,11 +140,21 @@ export default function AdminCourseDetailPage() {
         title: course.title,
         description: course.description,
         short_description: course.short_description,
+        skill_type: course.skill_type,
+        level: course.level,
+        enrollment_type: course.enrollment_type,
+        price: Number(course.price) || 0,
+        currency: course.currency || "VND",
+        thumbnail_url: course.thumbnail_url,
+        preview_video_url: course.preview_video_url,
+        is_featured: course.is_featured,
+        is_recommended: course.is_recommended,
       })
       toast({
         title: "Success",
         description: "Course information updated successfully",
       })
+      loadCourse() // Reload to get updated data
     } catch (error) {
       console.error("Failed to update course:", error)
       toast({
@@ -125,14 +167,18 @@ export default function AdminCourseDetailPage() {
     }
   }
 
-  const handlePublish = async () => {
-    if (!window.confirm("Publish this course? It will be visible to students.")) return
+  const handlePublish = () => {
+    setPublishDialogOpen(true)
+  }
+
+  const confirmPublish = async () => {
     try {
       await instructorApi.publishCourse(params.id as string)
       toast({
         title: "Success",
         description: "Course published successfully",
       })
+      setPublishDialogOpen(false)
       loadCourse()
     } catch (error) {
       console.error("Failed to publish course:", error)
@@ -144,14 +190,18 @@ export default function AdminCourseDetailPage() {
     }
   }
 
-  const handleArchive = async () => {
-    if (!window.confirm("Archive this course? Students will no longer be able to access it.")) return
+  const handleArchive = () => {
+    setArchiveDialogOpen(true)
+  }
+
+  const confirmArchive = async () => {
     try {
       await instructorApi.archiveCourse(params.id as string)
       toast({
         title: "Success",
         description: "Course archived successfully",
       })
+      setArchiveDialogOpen(false)
       loadCourse()
     } catch (error) {
       console.error("Failed to archive course:", error)
@@ -181,7 +231,7 @@ export default function AdminCourseDetailPage() {
   const handleModuleSuccess = async () => {
     const wasCreating = !selectedModule
     await loadCourse()
-    
+
     // If creating new module, auto-expand it and prompt to add lessons
     if (wasCreating) {
       // Wait for state to update
@@ -204,14 +254,22 @@ export default function AdminCourseDetailPage() {
     setModuleModalOpen(true)
   }
 
-  const handleDeleteModule = async (moduleId: string) => {
-    if (!window.confirm("Delete this module? All lessons in this module will also be deleted.")) return
+  const handleDeleteModule = (moduleId: string) => {
+    setDeleteModuleId(moduleId)
+    setDeleteModuleDialogOpen(true)
+  }
+
+  const confirmDeleteModule = async () => {
+    if (!deleteModuleId) return
+
     try {
-      await instructorApi.deleteModule(moduleId)
+      await instructorApi.deleteModule(deleteModuleId)
       toast({
         title: "Success",
         description: "Module deleted successfully",
       })
+      setDeleteModuleDialogOpen(false)
+      setDeleteModuleId(null)
       loadCourse()
     } catch (error) {
       console.error("Failed to delete module:", error)
@@ -224,25 +282,44 @@ export default function AdminCourseDetailPage() {
   }
 
   const handleAddLesson = (moduleId: string) => {
+    console.log("handleAddLesson called with moduleId:", moduleId)
+    if (!moduleId) {
+      toast({
+        title: "Error",
+        description: "Module ID is missing",
+        variant: "destructive",
+      })
+      return
+    }
     setSelectedLesson(null)
     setSelectedModuleForLesson(moduleId)
     setLessonModalOpen(true)
   }
 
   const handleEditLesson = (lesson: Lesson, moduleId: string) => {
+    console.log("handleEditLesson called with:", { lesson, moduleId })
+    console.log("Lesson details:", JSON.stringify(lesson, null, 2))
     setSelectedLesson(lesson)
     setSelectedModuleForLesson(moduleId)
     setLessonModalOpen(true)
   }
 
-  const handleDeleteLesson = async (lessonId: string) => {
-    if (!window.confirm("Delete this lesson?")) return
+  const handleDeleteLesson = (lessonId: string) => {
+    setDeleteLessonId(lessonId)
+    setDeleteLessonDialogOpen(true)
+  }
+
+  const confirmDeleteLesson = async () => {
+    if (!deleteLessonId) return
+
     try {
-      await instructorApi.deleteLesson(lessonId)
+      await instructorApi.deleteLesson(deleteLessonId)
       toast({
         title: "Success",
         description: "Lesson deleted successfully",
       })
+      setDeleteLessonDialogOpen(false)
+      setDeleteLessonId(null)
       loadCourse()
     } catch (error) {
       console.error("Failed to delete lesson:", error)
@@ -252,6 +329,19 @@ export default function AdminCourseDetailPage() {
         variant: "destructive",
       })
     }
+  }
+
+  const handleVideoNeeded = (lessonId: string) => {
+    setSelectedLessonForVideo(lessonId)
+    setVideoModalOpen(true)
+  }
+
+  const handleVideoSuccess = () => {
+    toast({
+      title: "Success",
+      description: "Video added successfully",
+    })
+    loadCourse()
   }
 
   if (loading) {
@@ -283,7 +373,7 @@ export default function AdminCourseDetailPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.push("/admin/content")}>
+          <Button variant="ghost" size="icon" onClick={() => router.push("/admin/courses-management")}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
@@ -353,19 +443,112 @@ export default function AdminCourseDetailPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Skill Type</label>
-                    <Badge>{course.skill_type}</Badge>
+                    <Select
+                      value={course.skill_type || "listening"}
+                      onValueChange={(value) => setCourse({ ...course, skill_type: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select skill type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="listening">Listening</SelectItem>
+                        <SelectItem value="reading">Reading</SelectItem>
+                        <SelectItem value="writing">Writing</SelectItem>
+                        <SelectItem value="speaking">Speaking</SelectItem>
+                        <SelectItem value="general">General</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
+
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Level</label>
-                    <Badge>{course.level}</Badge>
+                    <Select
+                      value={course.level || "beginner"}
+                      onValueChange={(value) => setCourse({ ...course, level: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select level" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="beginner">Beginner</SelectItem>
+                        <SelectItem value="intermediate">Intermediate</SelectItem>
+                        <SelectItem value="advanced">Advanced</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Enrollment Type</label>
-                    <Badge>{course.enrollment_type}</Badge>
+                    <Select
+                      value={course.enrollment_type || "free"}
+                      onValueChange={(value) => setCourse({ ...course, enrollment_type: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="free">Free</SelectItem>
+                        <SelectItem value="premium">Premium</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
+
+                  {course.enrollment_type === 'premium' && (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Price</label>
+                      <div className="flex gap-2">
+                        <Input
+                          type="number"
+                          value={course.price || 0}
+                          onChange={(e) => setCourse({ ...course, price: parseFloat(e.target.value) })}
+                          placeholder="0.00"
+                          min="0"
+                          step="0.01"
+                          className="flex-1"
+                        />
+                        <Select
+                          value={course.currency || "VND"}
+                          onValueChange={(value) => setCourse({ ...course, currency: value })}
+                        >
+                          <SelectTrigger className="w-[100px]">
+                            <SelectValue placeholder="Currency" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="VND">VND</SelectItem>
+                            <SelectItem value="USD">USD</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Thumbnail URL</label>
+                  <Input
+                    value={course.thumbnail_url || ""}
+                    onChange={(e) => setCourse({ ...course, thumbnail_url: e.target.value })}
+                    placeholder="https://example.com/image.jpg"
+                  />
+                  {course.thumbnail_url && (
+                    <div className="mt-2 relative w-full h-48 bg-muted rounded-md overflow-hidden">
+                      <img src={course.thumbnail_url} alt="Thumbnail preview" className="object-cover w-full h-full" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Preview Video URL</label>
+                  <Input
+                    value={course.preview_video_url || ""}
+                    onChange={(e) => setCourse({ ...course, preview_video_url: e.target.value })}
+                    placeholder="https://example.com/video.mp4"
+                  />
                 </div>
 
                 <Button type="submit" disabled={saving}>
@@ -472,9 +655,9 @@ export default function AdminCourseDetailPage() {
                                   </div>
                                 ))}
                               </div>
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
+                              <Button
+                                variant="outline"
+                                size="sm"
                                 onClick={() => handleAddLesson(module.id)}
                                 className="w-full"
                               >
@@ -555,17 +738,26 @@ export default function AdminCourseDetailPage() {
       />
 
       {/* Lesson Form Modal */}
-      <LessonFormModal
-        moduleId={selectedModuleForLesson || ""}
-        lesson={selectedLesson}
-        open={lessonModalOpen}
-        onOpenChange={setLessonModalOpen}
-        onSuccess={loadCourse}
-        lessonsCount={
-          selectedModuleForLesson 
-            ? (modules.find(m => m.id === selectedModuleForLesson)?.lessons?.length || 0)
-            : 0
-        }
+      {selectedModuleForLesson && (
+        <LessonFormModal
+          moduleId={selectedModuleForLesson}
+          lesson={selectedLesson}
+          open={lessonModalOpen}
+          onOpenChange={setLessonModalOpen}
+          onSuccess={loadCourse}
+          onVideoNeeded={handleVideoNeeded}
+          lessonsCount={
+            modules.find(m => m.id === selectedModuleForLesson)?.lessons?.length || 0
+          }
+        />
+      )}
+
+      {/* Video Form Modal */}
+      <VideoFormModal
+        lessonId={selectedLessonForVideo}
+        open={videoModalOpen}
+        onOpenChange={setVideoModalOpen}
+        onSuccess={handleVideoSuccess}
       />
 
       {/* Add Lesson Dialog */}
@@ -586,7 +778,79 @@ export default function AdminCourseDetailPage() {
                 }
               }}
             >
-              Add Lessons
+              Add Lesson
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Publish Course Dialog */}
+      <AlertDialog open={publishDialogOpen} onOpenChange={setPublishDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Publish Course</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to publish this course? It will be visible to all students and they can enroll in it.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmPublish} className="bg-green-600 hover:bg-green-700">
+              Publish Course
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Archive Course Dialog */}
+      <AlertDialog open={archiveDialogOpen} onOpenChange={setArchiveDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Archive Course</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to archive this course? Students will no longer be able to access it or enroll in it.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmArchive} className="bg-red-600 hover:bg-red-700">
+              Archive Course
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Lesson Dialog */}
+      <AlertDialog open={deleteLessonDialogOpen} onOpenChange={setDeleteLessonDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Lesson</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this lesson? This action cannot be undone and will remove all associated videos and progress data.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteLesson} className="bg-red-600 hover:bg-red-700">
+              Delete Lesson
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Module Dialog */}
+      <AlertDialog open={deleteModuleDialogOpen} onOpenChange={setDeleteModuleDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Module</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this module? All lessons in this module will also be deleted. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteModule} className="bg-red-600 hover:bg-red-700">
+              Delete Module
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 
@@ -120,7 +121,13 @@ func (h *CourseHandler) GetCourseDetail(c *gin.Context) {
 		}
 	}
 
-	courseDetail, err := h.service.GetCourseDetail(courseID, userID)
+	// Get user role
+	userRole := ""
+	if roleVal, exists := c.Get("role"); exists {
+		userRole = roleVal.(string)
+	}
+
+	courseDetail, err := h.service.GetCourseDetail(courseID, userID, userRole)
 	if err != nil {
 		statusCode := http.StatusInternalServerError
 		if err.Error() == "course not found" {
@@ -698,17 +705,23 @@ func (h *CourseHandler) UpdateCourse(c *gin.Context) {
 		return
 	}
 
+	// Debug log
+	log.Printf("[UpdateCourse] Request: %+v", req)
+
 	course, err := h.service.UpdateCourse(courseID, userID, userRole, &req)
 	if err != nil {
+		log.Printf("[UpdateCourse] Error: %v", err)
 		statusCode := http.StatusBadRequest
 		if err.Error() == "you don't have permission to update this course" {
 			statusCode = http.StatusForbidden
+		} else if err.Error() == "course not found" {
+			statusCode = http.StatusNotFound
 		}
 		c.JSON(statusCode, Response{
 			Success: false,
 			Error: &ErrorInfo{
 				Code:    "UPDATE_FAILED",
-				Message: "Failed to update course",
+				Message: err.Error(),
 				Details: err.Error(),
 			},
 		})
@@ -739,11 +752,12 @@ func (h *CourseHandler) DeleteCourse(c *gin.Context) {
 
 	err = h.service.DeleteCourse(courseID)
 	if err != nil {
+		log.Printf("[DeleteCourse] Error: %v", err)
 		c.JSON(http.StatusBadRequest, Response{
 			Success: false,
 			Error: &ErrorInfo{
 				Code:    "DELETE_FAILED",
-				Message: "Failed to delete course",
+				Message: err.Error(),
 				Details: err.Error(),
 			},
 		})
@@ -885,6 +899,298 @@ func (h *CourseHandler) CreateLesson(c *gin.Context) {
 		Success: true,
 		Message: "Lesson created successfully",
 		Data:    lesson,
+	})
+}
+
+// UpdateModule updates an existing module
+func (h *CourseHandler) UpdateModule(c *gin.Context) {
+	// Get user info from JWT
+	userIDVal, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "UNAUTHORIZED",
+				Message: "User not authenticated",
+			},
+		})
+		return
+	}
+
+	userIDStr := userIDVal.(string)
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "INVALID_USER_ID",
+				Message: "Invalid user ID",
+			},
+		})
+		return
+	}
+
+	userRole := ""
+	if roleVal, exists := c.Get("role"); exists {
+		userRole = roleVal.(string)
+	}
+
+	// Get module ID from URL param
+	moduleIDStr := c.Param("id")
+	moduleID, err := uuid.Parse(moduleIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "INVALID_MODULE_ID",
+				Message: "Invalid module ID",
+			},
+		})
+		return
+	}
+
+	var req models.CreateModuleRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "VALIDATION_ERROR",
+				Message: "Invalid request data",
+				Details: err.Error(),
+			},
+		})
+		return
+	}
+
+	module, err := h.service.UpdateModule(userID, userRole, moduleID, &req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "UPDATE_FAILED",
+				Message: "Failed to update module",
+				Details: err.Error(),
+			},
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, Response{
+		Success: true,
+		Message: "Module updated successfully",
+		Data:    module,
+	})
+}
+
+// DeleteModule deletes a module
+func (h *CourseHandler) DeleteModule(c *gin.Context) {
+	// Get user info from JWT
+	userIDVal, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "UNAUTHORIZED",
+				Message: "User not authenticated",
+			},
+		})
+		return
+	}
+
+	userIDStr := userIDVal.(string)
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "INVALID_USER_ID",
+				Message: "Invalid user ID",
+			},
+		})
+		return
+	}
+
+	userRole := ""
+	if roleVal, exists := c.Get("role"); exists {
+		userRole = roleVal.(string)
+	}
+
+	// Get module ID from URL param
+	moduleIDStr := c.Param("id")
+	moduleID, err := uuid.Parse(moduleIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "INVALID_MODULE_ID",
+				Message: "Invalid module ID",
+			},
+		})
+		return
+	}
+
+	err = h.service.DeleteModule(userID, userRole, moduleID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "DELETE_FAILED",
+				Message: "Failed to delete module",
+				Details: err.Error(),
+			},
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, Response{
+		Success: true,
+		Message: "Module deleted successfully",
+	})
+}
+
+// UpdateLesson updates an existing lesson
+func (h *CourseHandler) UpdateLesson(c *gin.Context) {
+	// Get user info from JWT
+	userIDVal, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "UNAUTHORIZED",
+				Message: "User not authenticated",
+			},
+		})
+		return
+	}
+
+	userIDStr := userIDVal.(string)
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "INVALID_USER_ID",
+				Message: "Invalid user ID",
+			},
+		})
+		return
+	}
+
+	userRole := ""
+	if roleVal, exists := c.Get("role"); exists {
+		userRole = roleVal.(string)
+	}
+
+	// Get lesson ID from URL param
+	lessonIDStr := c.Param("id")
+	lessonID, err := uuid.Parse(lessonIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "INVALID_LESSON_ID",
+				Message: "Invalid lesson ID",
+			},
+		})
+		return
+	}
+
+	var req models.CreateLessonRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "VALIDATION_ERROR",
+				Message: "Invalid request data",
+				Details: err.Error(),
+			},
+		})
+		return
+	}
+
+	lesson, err := h.service.UpdateLesson(userID, userRole, lessonID, &req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "UPDATE_FAILED",
+				Message: "Failed to update lesson",
+				Details: err.Error(),
+			},
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, Response{
+		Success: true,
+		Message: "Lesson updated successfully",
+		Data:    lesson,
+	})
+}
+
+// DeleteLesson deletes a lesson
+func (h *CourseHandler) DeleteLesson(c *gin.Context) {
+	// Get user info from JWT
+	userIDVal, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "UNAUTHORIZED",
+				Message: "User not authenticated",
+			},
+		})
+		return
+	}
+
+	userIDStr := userIDVal.(string)
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "INVALID_USER_ID",
+				Message: "Invalid user ID",
+			},
+		})
+		return
+	}
+
+	userRole := ""
+	if roleVal, exists := c.Get("role"); exists {
+		userRole = roleVal.(string)
+	}
+
+	// Get lesson ID from URL param
+	lessonIDStr := c.Param("id")
+	lessonID, err := uuid.Parse(lessonIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "INVALID_LESSON_ID",
+				Message: "Invalid lesson ID",
+			},
+		})
+		return
+	}
+
+	err = h.service.DeleteLesson(userID, userRole, lessonID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "DELETE_FAILED",
+				Message: "Failed to delete lesson",
+				Details: err.Error(),
+			},
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, Response{
+		Success: true,
+		Message: "Lesson deleted successfully",
 	})
 }
 
@@ -1383,7 +1689,7 @@ func (h *CourseHandler) AddVideoToLesson(c *gin.Context) {
 	}
 
 	// Get lesson ID from URL
-	lessonIDStr := c.Param("lesson_id")
+	lessonIDStr := c.Param("id")
 	lessonID, err := uuid.Parse(lessonIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, Response{
@@ -1428,6 +1734,181 @@ func (h *CourseHandler) AddVideoToLesson(c *gin.Context) {
 		Success: true,
 		Message: "Video added to lesson successfully",
 		Data:    video,
+	})
+}
+
+// UpdateLessonVideo updates an existing video in a lesson (Admin/Instructor only)
+func (h *CourseHandler) UpdateLessonVideo(c *gin.Context) {
+	// Get user info from JWT
+	userIDVal, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "UNAUTHORIZED",
+				Message: "User not authenticated",
+			},
+		})
+		return
+	}
+
+	userIDStr := userIDVal.(string)
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "INVALID_USER_ID",
+				Message: "Invalid user ID",
+			},
+		})
+		return
+	}
+
+	userRole := ""
+	if roleVal, exists := c.Get("role"); exists {
+		userRole = roleVal.(string)
+	}
+
+	// Get lesson ID and video ID from URL
+	lessonIDStr := c.Param("id")
+	lessonID, err := uuid.Parse(lessonIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "INVALID_LESSON_ID",
+				Message: "Invalid lesson ID format",
+			},
+		})
+		return
+	}
+
+	videoIDStr := c.Param("video_id")
+	videoID, err := uuid.Parse(videoIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "INVALID_VIDEO_ID",
+				Message: "Invalid video ID format",
+			},
+		})
+		return
+	}
+
+	// Parse request body
+	var req models.UpdateVideoRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "VALIDATION_ERROR",
+				Message: "Invalid request data",
+				Details: err.Error(),
+			},
+		})
+		return
+	}
+
+	// Update video
+	video, err := h.service.UpdateLessonVideo(userID, userRole, lessonID, videoID, &req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "UPDATE_VIDEO_FAILED",
+				Message: "Failed to update video",
+				Details: err.Error(),
+			},
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, Response{
+		Success: true,
+		Message: "Video updated successfully",
+		Data:    video,
+	})
+}
+
+// DeleteLessonVideo removes a video from a lesson (Admin/Instructor only)
+func (h *CourseHandler) DeleteLessonVideo(c *gin.Context) {
+	// Get user info from JWT
+	userIDVal, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "UNAUTHORIZED",
+				Message: "User not authenticated",
+			},
+		})
+		return
+	}
+
+	userIDStr := userIDVal.(string)
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "INVALID_USER_ID",
+				Message: "Invalid user ID",
+			},
+		})
+		return
+	}
+
+	userRole := ""
+	if roleVal, exists := c.Get("role"); exists {
+		userRole = roleVal.(string)
+	}
+
+	// Get lesson ID and video ID from URL
+	lessonIDStr := c.Param("id")
+	lessonID, err := uuid.Parse(lessonIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "INVALID_LESSON_ID",
+				Message: "Invalid lesson ID format",
+			},
+		})
+		return
+	}
+
+	videoIDStr := c.Param("video_id")
+	videoID, err := uuid.Parse(videoIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "INVALID_VIDEO_ID",
+				Message: "Invalid video ID format",
+			},
+		})
+		return
+	}
+
+	// Delete video
+	err = h.service.DeleteLessonVideo(userID, userRole, lessonID, videoID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error: &ErrorInfo{
+				Code:    "DELETE_VIDEO_FAILED",
+				Message: "Failed to delete video",
+				Details: err.Error(),
+			},
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, Response{
+		Success: true,
+		Message: "Video deleted successfully",
 	})
 }
 

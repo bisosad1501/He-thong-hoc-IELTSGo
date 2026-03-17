@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func SetupRoutes(router *gin.Engine, authHandler *handlers.AuthHandler, authService service.AuthService) {
+func SetupRoutes(router *gin.Engine, authHandler *handlers.AuthHandler, adminHandler *handlers.AdminHandler, authService service.AuthService) {
 	// Health check
 	router.GET("/health", authHandler.HealthCheck)
 
@@ -46,6 +46,23 @@ func SetupRoutes(router *gin.Engine, authHandler *handlers.AuthHandler, authServ
 				protected.POST("/logout", authHandler.Logout)
 				protected.POST("/change-password", authHandler.ChangePassword)
 			}
+		}
+
+		// Admin routes (require admin role)
+		admin := v1.Group("/admin")
+		admin.Use(middleware.AuthMiddleware(authService))
+		admin.Use(middleware.AdminMiddleware())
+		{
+			// User management
+			admin.GET("/users", adminHandler.ListUsers)
+			admin.GET("/users/:id", adminHandler.GetUser)
+			admin.PUT("/users/:id", adminHandler.UpdateUser)
+			admin.DELETE("/users/:id", adminHandler.DeleteUser)
+			admin.PUT("/users/:id/status", adminHandler.UpdateUserStatus)
+
+			// Role management
+			admin.POST("/users/:id/roles", adminHandler.AssignRole)
+			admin.DELETE("/users/:id/roles/:role", adminHandler.RevokeRole)
 		}
 	}
 }

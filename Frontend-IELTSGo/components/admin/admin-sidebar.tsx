@@ -39,55 +39,31 @@ const navItems: NavItem[] = [
     title: "Users",
     href: "/admin/users",
     icon: Users,
-    children: [
-      { title: "All Users", href: "/admin/users" },
-      { title: "Students", href: "/admin/users?role=student" },
-      { title: "Instructors", href: "/admin/users?role=instructor" },
-      { title: "Admins", href: "/admin/users?role=admin" },
-    ],
   },
   {
-    title: "Content",
-    href: "/admin/content",
+    title: "Courses",
+    href: "/admin/courses-management",
     icon: BookOpen,
-    children: [
-      { title: "All Content", href: "/admin/content" },
-      { title: "Courses", href: "/admin/content?type=course" },
-      { title: "Lessons", href: "/admin/content?type=lesson" },
-      { title: "Exercises", href: "/admin/content?type=exercise" },
-    ],
+  },
+  {
+    title: "Exercises",
+    href: "/admin/exercises",
+    icon: BookOpen,
   },
   {
     title: "Analytics",
     href: "/admin/analytics",
     icon: BarChart3,
-    children: [
-      { title: "Overview", href: "/admin/analytics" },
-      { title: "User Analytics", href: "/admin/analytics?tab=users" },
-      { title: "Course Analytics", href: "/admin/analytics?tab=courses" },
-      { title: "Revenue", href: "/admin/analytics?tab=revenue" },
-    ],
   },
   {
     title: "Notifications",
     href: "/admin/notifications",
     icon: Bell,
-    children: [
-      { title: "Send Notification", href: "/admin/notifications" },
-      { title: "Templates", href: "/admin/notifications?tab=templates" },
-      { title: "History", href: "/admin/notifications?tab=history" },
-    ],
   },
   {
     title: "Settings",
     href: "/admin/settings",
     icon: Settings,
-    children: [
-      { title: "General", href: "/admin/settings" },
-      { title: "Email", href: "/admin/settings?tab=email" },
-      { title: "Security", href: "/admin/settings?tab=security" },
-      { title: "System Health", href: "/admin/settings?tab=health" },
-    ],
   },
 ]
 

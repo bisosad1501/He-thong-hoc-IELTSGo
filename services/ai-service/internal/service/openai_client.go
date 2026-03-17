@@ -55,7 +55,6 @@ func (c *OpenAIClient) TranscribeAudio(audioURL string, audioData []byte) (*mode
 	writer.WriteField("language", "en")
 	writer.WriteField("response_format", "verbose_json")
 	writer.WriteField("timestamp_granularities[]", "word")
-
 	writer.Close()
 
 	// Create request
@@ -213,7 +212,7 @@ Guidelines:
 				"content": evaluationPrompt,
 			},
 		},
-		"temperature":      0.3,
+		"temperature":     0.3,
 		"response_format": map[string]string{"type": "json_object"},
 	}
 
@@ -473,7 +472,7 @@ EVALUATION GUIDELINES:
 				"content": evaluationPrompt,
 			},
 		},
-		"temperature":      0.3,
+		"temperature":     0.3,
 		"response_format": map[string]string{"type": "json_object"},
 	}
 
@@ -535,4 +534,3 @@ func (c *OpenAIClient) callChatAPI(payload interface{}, result interface{}) (int
 
 	return result, nil
 }
-

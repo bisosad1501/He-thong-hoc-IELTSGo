@@ -50,7 +50,7 @@ func (s *CourseService) GetCourses(query *models.CourseListQuery) ([]models.Cour
 }
 
 // GetCourseDetail retrieves detailed course with modules and lessons
-func (s *CourseService) GetCourseDetail(courseID uuid.UUID, userID *uuid.UUID) (*models.CourseDetailResponse, error) {
+func (s *CourseService) GetCourseDetail(courseID uuid.UUID, userID *uuid.UUID, userRole string) (*models.CourseDetailResponse, error) {
 	// Get course
 	course, err := s.repo.GetCourseByID(courseID)
 	if err != nil {
@@ -58,6 +58,25 @@ func (s *CourseService) GetCourseDetail(courseID uuid.UUID, userID *uuid.UUID) (
 	}
 	if course == nil {
 		return nil, fmt.Errorf("course not found")
+	}
+
+	// CHECK ACCESS: If not published, only Owner or Admin can view
+	if course.Status != "published" {
+		canView := false
+
+		// 1. Admin always can view
+		if userRole == "admin" {
+			canView = true
+		}
+
+		// 2. Instructor (Owner) can view
+		if !canView && userID != nil && *userID == course.InstructorID {
+			canView = true
+		}
+
+		if !canView {
+			return nil, fmt.Errorf("course not found")
+		}
 	}
 
 	// Get modules
@@ -807,6 +826,18 @@ func (s *CourseService) UpdateCourse(courseID uuid.UUID, userID uuid.UUID, userR
 	if req.Status != nil {
 		updates["status"] = *req.Status
 	}
+	if req.SkillType != nil {
+		updates["skill_type"] = *req.SkillType
+	}
+	if req.Level != nil {
+		updates["level"] = *req.Level
+	}
+	if req.EnrollmentType != nil {
+		updates["enrollment_type"] = *req.EnrollmentType
+	}
+	if req.Currency != nil {
+		updates["currency"] = *req.Currency
+	}
 	if req.IsFeatured != nil {
 		updates["is_featured"] = *req.IsFeatured
 	}
@@ -905,6 +936,19 @@ func (s *CourseService) CreateLesson(userID uuid.UUID, userRole string, req *mod
 		return nil, fmt.Errorf("failed to create lesson: %w", err)
 	}
 
+	// Recalculate module and course durations if lesson has duration
+	if lesson.DurationMinutes != nil && *lesson.DurationMinutes > 0 {
+		err = s.repo.RecalculateModuleDuration(lesson.ModuleID)
+		if err != nil {
+			log.Printf("[Course-Service] WARNING: Failed to recalculate module duration: %v", err)
+		}
+
+		err = s.repo.RecalculateCourseDuration(courseID)
+		if err != nil {
+			log.Printf("[Course-Service] WARNING: Failed to recalculate course duration: %v", err)
+		}
+	}
+
 	// Send notification to enrolled users about new lesson (non-critical)
 	go func() {
 		// Get course to get enrolled users
@@ -945,6 +989,166 @@ func (s *CourseService) CreateLesson(userID uuid.UUID, userRole string, req *mod
 	}()
 
 	return lesson, nil
+}
+
+// UpdateModule updates an existing module
+func (s *CourseService) UpdateModule(userID uuid.UUID, userRole string, moduleID uuid.UUID, req *models.CreateModuleRequest) (*models.Module, error) {
+	// Get module's course_id
+	courseID, err := s.repo.GetModuleCourseID(moduleID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get module: %w", err)
+	}
+
+	// Check ownership if not admin
+	if userRole != "admin" {
+		isOwner, err := s.repo.CheckCourseOwnership(courseID, userID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to check ownership: %w", err)
+		}
+		if !isOwner {
+			return nil, fmt.Errorf("you don't have permission to update this module")
+		}
+	}
+
+	module := &models.Module{
+		ID:           moduleID,
+		CourseID:     req.CourseID,
+		Title:        req.Title,
+		Description:  req.Description,
+		DisplayOrder: req.DisplayOrder,
+	}
+
+	err = s.repo.UpdateModule(module)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update module: %w", err)
+	}
+
+	return module, nil
+}
+
+// DeleteModule deletes a module
+func (s *CourseService) DeleteModule(userID uuid.UUID, userRole string, moduleID uuid.UUID) error {
+	// Get module's course_id
+	courseID, err := s.repo.GetModuleCourseID(moduleID)
+	if err != nil {
+		return fmt.Errorf("failed to get module: %w", err)
+	}
+
+	// Check ownership if not admin
+	if userRole != "admin" {
+		isOwner, err := s.repo.CheckCourseOwnership(courseID, userID)
+		if err != nil {
+			return fmt.Errorf("failed to check ownership: %w", err)
+		}
+		if !isOwner {
+			return fmt.Errorf("you don't have permission to delete this module")
+		}
+	}
+
+	err = s.repo.DeleteModule(moduleID)
+	if err != nil {
+		return fmt.Errorf("failed to delete module: %w", err)
+	}
+
+	// Recalculate course duration
+	err = s.repo.RecalculateCourseDuration(courseID)
+	if err != nil {
+		log.Printf("[Course-Service] WARNING: Failed to recalculate course duration: %v", err)
+	}
+
+	return nil
+}
+
+// UpdateLesson updates an existing lesson
+func (s *CourseService) UpdateLesson(userID uuid.UUID, userRole string, lessonID uuid.UUID, req *models.CreateLessonRequest) (*models.Lesson, error) {
+	// Get lesson's course_id via module_id
+	courseID, err := s.repo.GetModuleCourseID(req.ModuleID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get module: %w", err)
+	}
+
+	// Check ownership if not admin
+	if userRole != "admin" {
+		isOwner, err := s.repo.CheckCourseOwnership(courseID, userID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to check ownership: %w", err)
+		}
+		if !isOwner {
+			return nil, fmt.Errorf("you don't have permission to update this lesson")
+		}
+	}
+
+	lesson := &models.Lesson{
+		ID:              lessonID,
+		ModuleID:        req.ModuleID,
+		CourseID:        courseID,
+		Title:           req.Title,
+		Description:     req.Description,
+		ContentType:     req.ContentType,
+		DurationMinutes: req.DurationMinutes,
+		DisplayOrder:    req.DisplayOrder,
+		IsFree:          req.IsFree,
+		IsPublished:     true,
+	}
+
+	err = s.repo.UpdateLesson(lesson)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update lesson: %w", err)
+	}
+
+	// Recalculate module and course durations
+	err = s.repo.RecalculateModuleDuration(lesson.ModuleID)
+	if err != nil {
+		log.Printf("[Course-Service] WARNING: Failed to recalculate module duration: %v", err)
+	}
+
+	err = s.repo.RecalculateCourseDuration(courseID)
+	if err != nil {
+		log.Printf("[Course-Service] WARNING: Failed to recalculate course duration: %v", err)
+	}
+
+	return lesson, nil
+}
+
+// DeleteLesson deletes a lesson
+func (s *CourseService) DeleteLesson(userID uuid.UUID, userRole string, lessonID uuid.UUID) error {
+	// Get lesson to get course_id
+	lesson, err := s.repo.GetLessonByID(lessonID)
+	if err != nil {
+		return fmt.Errorf("failed to get lesson: %w", err)
+	}
+
+	moduleID := lesson.ModuleID
+	courseID := lesson.CourseID
+
+	// Check ownership if not admin
+	if userRole != "admin" {
+		isOwner, err := s.repo.CheckCourseOwnership(lesson.CourseID, userID)
+		if err != nil {
+			return fmt.Errorf("failed to check ownership: %w", err)
+		}
+		if !isOwner {
+			return fmt.Errorf("you don't have permission to delete this lesson")
+		}
+	}
+
+	err = s.repo.DeleteLesson(lessonID)
+	if err != nil {
+		return fmt.Errorf("failed to delete lesson: %w", err)
+	}
+
+	// Recalculate module and course durations
+	err = s.repo.RecalculateModuleDuration(moduleID)
+	if err != nil {
+		log.Printf("[Course-Service] WARNING: Failed to recalculate module duration: %v", err)
+	}
+
+	err = s.repo.RecalculateCourseDuration(courseID)
+	if err != nil {
+		log.Printf("[Course-Service] WARNING: Failed to recalculate course duration: %v", err)
+	}
+
+	return nil
 }
 
 // PublishCourse publishes a draft course (Admin/Instructor with ownership check)
@@ -1210,10 +1414,15 @@ func (s *CourseService) AddVideoToLesson(userID uuid.UUID, userRole string, less
 
 	if req.DurationSeconds != nil {
 		video.DurationSeconds = *req.DurationSeconds
+		log.Printf("[Course-Service] Video duration provided: %d seconds", *req.DurationSeconds)
 	}
 
 	// Auto-fetch duration from YouTube API if provider is youtube and duration not provided
-	if s.youtubeService != nil && req.VideoProvider == "youtube" && req.VideoID != "" && (req.DurationSeconds == nil || *req.DurationSeconds == 0) {
+	shouldFetchDuration := s.youtubeService != nil && req.VideoProvider == "youtube" && req.VideoID != "" && (req.DurationSeconds == nil || *req.DurationSeconds == 0)
+	log.Printf("[Course-Service] Video provider: %s, Video ID: %s, Duration provided: %v, Should fetch: %v, YouTube service available: %v",
+		req.VideoProvider, req.VideoID, req.DurationSeconds, shouldFetchDuration, s.youtubeService != nil)
+
+	if shouldFetchDuration {
 		log.Printf("[Course-Service] Auto-fetching YouTube video duration for video_id: %s", req.VideoID)
 
 		duration, err := s.youtubeService.GetVideoDuration(req.VideoID)
@@ -1240,9 +1449,230 @@ func (s *CourseService) AddVideoToLesson(userID uuid.UUID, userRole string, less
 		} else {
 			log.Printf("[Course-Service] ✅ Auto-synced lesson duration: %d minutes (from %d seconds)", durationMinutes, video.DurationSeconds)
 		}
+
+		// Recalculate module and course durations
+		err = s.repo.RecalculateModuleDuration(lesson.ModuleID)
+		if err != nil {
+			log.Printf("[Course-Service] WARNING: Failed to recalculate module duration: %v", err)
+		} else {
+			log.Printf("[Course-Service] ✅ Recalculated module duration")
+		}
+
+		err = s.repo.RecalculateCourseDuration(lesson.CourseID)
+		if err != nil {
+			log.Printf("[Course-Service] WARNING: Failed to recalculate course duration: %v", err)
+		} else {
+			log.Printf("[Course-Service] ✅ Recalculated course duration")
+		}
 	}
 
 	return video, nil
+}
+
+// UpdateLessonVideo updates an existing video in a lesson
+func (s *CourseService) UpdateLessonVideo(userID uuid.UUID, userRole string, lessonID uuid.UUID, videoID uuid.UUID, req *models.UpdateVideoRequest) (*models.LessonVideo, error) {
+	// Verify user has permission (admin or instructor who owns the course)
+	lesson, err := s.repo.GetLessonByID(lessonID)
+	if err != nil {
+		return nil, fmt.Errorf("lesson not found: %v", err)
+	}
+	if lesson == nil {
+		return nil, fmt.Errorf("lesson not found")
+	}
+
+	module, err := s.repo.GetModuleByID(lesson.ModuleID)
+	if err != nil {
+		return nil, fmt.Errorf("module not found: %v", err)
+	}
+	if module == nil {
+		return nil, fmt.Errorf("module not found")
+	}
+
+	course, err := s.repo.GetCourseByID(module.CourseID)
+	if err != nil {
+		return nil, fmt.Errorf("course not found: %v", err)
+	}
+	if course == nil {
+		return nil, fmt.Errorf("course not found")
+	}
+
+	// Check ownership
+	if userRole != "admin" && course.InstructorID != userID {
+		return nil, fmt.Errorf("unauthorized: you don't own this course")
+	}
+
+	// Get existing video
+	video, err := s.repo.GetLessonVideoByID(videoID)
+	if err != nil {
+		return nil, fmt.Errorf("video not found: %v", err)
+	}
+	if video == nil {
+		return nil, fmt.Errorf("video not found")
+	}
+
+	// Check video belongs to lesson
+	if video.LessonID != lessonID {
+		return nil, fmt.Errorf("video does not belong to this lesson")
+	}
+
+	// Update fields if provided
+	if req.Title != nil {
+		video.Title = *req.Title
+	}
+	if req.VideoProvider != nil {
+		video.VideoProvider = *req.VideoProvider
+	}
+	if req.VideoID != nil {
+		video.VideoID = req.VideoID
+	}
+	if req.VideoURL != nil {
+		video.VideoURL = *req.VideoURL
+	}
+	if req.ThumbnailURL != nil {
+		video.ThumbnailURL = req.ThumbnailURL
+	}
+	if req.DisplayOrder != nil {
+		video.DisplayOrder = *req.DisplayOrder
+	}
+
+	// Handle duration update - auto-fetch from YouTube if provider changed to youtube
+	shouldFetchDuration := false
+	if req.VideoProvider != nil && *req.VideoProvider == "youtube" && req.VideoID != nil && *req.VideoID != "" {
+		// If duration not provided or is 0, auto-fetch
+		if req.DurationSeconds == nil || *req.DurationSeconds == 0 {
+			shouldFetchDuration = s.youtubeService != nil
+		}
+	}
+
+	if req.DurationSeconds != nil {
+		video.DurationSeconds = *req.DurationSeconds
+		log.Printf("[Course-Service] Video duration updated: %d seconds", *req.DurationSeconds)
+	}
+
+	log.Printf("[Course-Service] Update video - Provider: %s, Video ID: %v, Should fetch: %v",
+		video.VideoProvider, video.VideoID, shouldFetchDuration)
+
+	if shouldFetchDuration && video.VideoID != nil {
+		log.Printf("[Course-Service] Auto-fetching YouTube video duration for video_id: %s", *video.VideoID)
+		duration, err := s.youtubeService.GetVideoDuration(*video.VideoID)
+		if err != nil {
+			log.Printf("[Course-Service] WARNING: Failed to fetch YouTube duration: %v", err)
+		} else {
+			video.DurationSeconds = int(duration)
+			log.Printf("[Course-Service] ✅ Auto-fetched YouTube duration: %d seconds", duration)
+		}
+	}
+
+	// Update video in database
+	err = s.repo.UpdateLessonVideo(video)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update video: %v", err)
+	}
+
+	// Recalculate lesson duration from video durations
+	if video.DurationSeconds > 0 {
+		durationMinutes := int(math.Ceil(float64(video.DurationSeconds) / 60.0))
+		err = s.repo.UpdateLessonDuration(lessonID, durationMinutes)
+		if err != nil {
+			log.Printf("[Course-Service] WARNING: Failed to update lesson duration: %v", err)
+		} else {
+			log.Printf("[Course-Service] ✅ Updated lesson duration: %d minutes", durationMinutes)
+		}
+
+		// Recalculate module and course durations
+		err = s.repo.RecalculateModuleDuration(lesson.ModuleID)
+		if err != nil {
+			log.Printf("[Course-Service] WARNING: Failed to recalculate module duration: %v", err)
+		} else {
+			log.Printf("[Course-Service] ✅ Recalculated module duration")
+		}
+
+		err = s.repo.RecalculateCourseDuration(lesson.CourseID)
+		if err != nil {
+			log.Printf("[Course-Service] WARNING: Failed to recalculate course duration: %v", err)
+		} else {
+			log.Printf("[Course-Service] ✅ Recalculated course duration")
+		}
+	}
+
+	return video, nil
+}
+
+// DeleteLessonVideo deletes a video from a lesson
+func (s *CourseService) DeleteLessonVideo(userID uuid.UUID, userRole string, lessonID uuid.UUID, videoID uuid.UUID) error {
+	// Verify user has permission (admin or instructor who owns the course)
+	lesson, err := s.repo.GetLessonByID(lessonID)
+	if err != nil {
+		return fmt.Errorf("lesson not found: %v", err)
+	}
+	if lesson == nil {
+		return fmt.Errorf("lesson not found")
+	}
+
+	module, err := s.repo.GetModuleByID(lesson.ModuleID)
+	if err != nil {
+		return fmt.Errorf("module not found: %v", err)
+	}
+	if module == nil {
+		return fmt.Errorf("module not found")
+	}
+
+	course, err := s.repo.GetCourseByID(module.CourseID)
+	if err != nil {
+		return fmt.Errorf("course not found: %v", err)
+	}
+	if course == nil {
+		return fmt.Errorf("course not found")
+	}
+
+	// Check ownership
+	if userRole != "admin" && course.InstructorID != userID {
+		return fmt.Errorf("unauthorized: you don't own this course")
+	}
+
+	// Get existing video to verify it belongs to lesson
+	video, err := s.repo.GetLessonVideoByID(videoID)
+	if err != nil {
+		return fmt.Errorf("video not found: %v", err)
+	}
+	if video == nil {
+		return fmt.Errorf("video not found")
+	}
+
+	if video.LessonID != lessonID {
+		return fmt.Errorf("video does not belong to this lesson")
+	}
+
+	// Delete video
+	err = s.repo.DeleteLessonVideo(videoID)
+	if err != nil {
+		return fmt.Errorf("failed to delete video: %v", err)
+	}
+
+	// Recalculate lesson duration from remaining videos
+	err = s.repo.RecalculateLessonDurationFromVideos(lessonID)
+	if err != nil {
+		log.Printf("[Course-Service] WARNING: Failed to recalculate lesson duration: %v", err)
+	} else {
+		log.Printf("[Course-Service] ✅ Recalculated lesson duration after video deletion")
+	}
+
+	// Recalculate module and course durations
+	err = s.repo.RecalculateModuleDuration(lesson.ModuleID)
+	if err != nil {
+		log.Printf("[Course-Service] WARNING: Failed to recalculate module duration: %v", err)
+	} else {
+		log.Printf("[Course-Service] ✅ Recalculated module duration")
+	}
+
+	err = s.repo.RecalculateCourseDuration(lesson.CourseID)
+	if err != nil {
+		log.Printf("[Course-Service] WARNING: Failed to recalculate course duration: %v", err)
+	} else {
+		log.Printf("[Course-Service] ✅ Recalculated course duration")
+	}
+
+	return nil
 }
 
 // handleLessonCompletion handles service-to-service integration when a lesson is completed

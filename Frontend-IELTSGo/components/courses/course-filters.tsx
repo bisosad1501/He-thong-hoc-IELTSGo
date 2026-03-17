@@ -41,6 +41,10 @@ const ENROLLMENT_TYPE_OPTIONS = [
   { value: "premium", label: "Premium", icon: Crown },
 ]
 
+const SPECIAL_OPTIONS = [
+  { value: "featured", label: "Featured", icon: Star },
+]
+
 export function CourseFiltersComponent({ filters, onFiltersChange, onSearch }: CourseFiltersProps) {
 
   const t = useTranslations('common')
@@ -88,6 +92,10 @@ export function CourseFiltersComponent({ filters, onFiltersChange, onSearch }: C
     onFiltersChange({ ...filters, enrollment_type: newTypes.length > 0 ? (newTypes.length === 1 ? newTypes[0] : newTypes) : undefined })
   }
 
+  const handleFeaturedToggle = () => {
+    onFiltersChange({ ...filters, is_featured: filters.is_featured ? undefined : true })
+  }
+
   const handleClearFilters = () => {
     // Clear search first
     setSearchValue("")
@@ -113,8 +121,7 @@ export function CourseFiltersComponent({ filters, onFiltersChange, onSearch }: C
     (Array.isArray(filters.skill_type) ? filters.skill_type.length : (filters.skill_type ? 1 : 0)) + 
     (Array.isArray(filters.level) ? filters.level.length : (filters.level ? 1 : 0)) + 
     (Array.isArray(filters.enrollment_type) ? filters.enrollment_type.length : (filters.enrollment_type ? 1 : 0)) + 
-    (filters.is_featured ? 1 : 0) +
-    (filters.sort ? 1 : 0)
+    (filters.is_featured ? 1 : 0)
 
   return (
     <div className="space-y-5">

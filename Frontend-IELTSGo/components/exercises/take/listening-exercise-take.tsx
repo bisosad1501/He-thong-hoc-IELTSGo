@@ -60,6 +60,12 @@ export function ListeningExerciseTake({
   const currentQuestion = allQuestions[currentQuestionIndex]
   const currentSection = currentQuestion?.sectionData
   
+  // Determine audio source: prefer section audio, fallback to exercise audio
+  const audioUrl = currentSection?.audio_url || exercise.audio_url
+  const audioTitle = currentSection?.audio_url 
+    ? `${t('audio')} - ${currentSection.title || `Section ${sections.findIndex(s => s.section?.id === currentSection.id) + 1}`}`
+    : t('audio') || 'Audio'
+  
   // Audio player state
   const [showSectionContent, setShowSectionContent] = useState(true)
   const [audioPlaying, setAudioPlaying] = useState(false)
@@ -135,7 +141,7 @@ export function ListeningExerciseTake({
       audio.removeEventListener('play', handlePlay)
       audio.removeEventListener('pause', handlePause)
     }
-  }, [currentSection?.audio_url])
+  }, [audioUrl]) // Re-run when audio URL changes
 
   if (!currentQuestion) return null
 
@@ -181,13 +187,13 @@ export function ListeningExerciseTake({
       </Card>
 
       {/* Audio Player Card - Always Visible for Listening */}
-      {currentSection?.audio_url && (
+      {audioUrl && (
         <Card className="border-purple-200 bg-purple-50/50 dark:bg-purple-950/20">
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg flex items-center gap-2">
                 <Volume2 className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                {t('audio')} - {currentSection.title || `Section ${sections.findIndex(s => s.section?.id === currentSection.id) + 1}`}
+                {audioTitle}
               </CardTitle>
               <div className="flex items-center gap-2">
                 {audioPlayed && (
@@ -220,7 +226,7 @@ export function ListeningExerciseTake({
             <div className="flex items-center gap-4 p-4 bg-white dark:bg-gray-900 rounded-lg border-2 border-purple-200 dark:border-purple-800">
               <audio
                 ref={audioRef}
-                src={currentSection.audio_url}
+                src={audioUrl}
                 className="hidden"
               />
               
@@ -242,6 +248,8 @@ export function ListeningExerciseTake({
                 variant="outline"
                 size="sm"
                 className="flex items-center gap-2"
+                disabled={audioPlayed}
+                title={audioPlayed ? "Audio has been played (IELTS standard: play once only)" : "Replay audio from start"}
               >
                 <RotateCcw className="w-4 h-4" />
                 {t('replay') || 'Phát lại'}
